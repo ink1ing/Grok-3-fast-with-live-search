@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: grok3-fast-live-search
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python chat.py
+    envVars:
+      - key: API_URL
+        value: https://api.x.ai/v1/chat/completions
+      - key: MODEL_NAME
+        value: grok-3-fast-latest
+      - key: TEMPERATURE
+        value: "0"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "false"
+      - key: PORT
+        value: "10000"
+      - key: HOST
+        value: "0.0.0.0"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: PYTHONDONTWRITEBYTECODE
+        value: "1"
+      - key: FLASK_ENV
+        value: "production"
+      - key: WEB_CONCURRENCY
+        value: "1"
+    healthCheckPath: /health
+    autoDeploy: true
+    disk:
+      name: grok3-disk
+      mountPath: /opt/render/project/src
+      sizeGB: 1
+    scaling:
+      minInstances: 1
+      maxInstances: 1
+    region: oregon
+    buildFilter:
+      paths:
+        - "**"
+      ignoredPaths:
+        - "*.md"
+        - ".git/**"
+        - ".gitignore"
+        - "test_*.py"
+        - "deploy_check.sh" 
