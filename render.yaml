@@ -8,6 +8,8 @@ services:
     envVars:
       - key: API_URL
         value: https://api.x.ai/v1/chat/completions
+      - key: API_IP
+        value: "146.75.33.95"
       - key: MODEL_NAME
         value: grok-3-fast-latest
       - key: TEMPERATURE
@@ -26,6 +28,8 @@ services:
         value: "true"
       - key: EVENTLET_NO_GREENDNS
         value: "yes"
+      - key: DNS_SERVERS
+        value: "8.8.8.8,8.8.4.4,1.1.1.1"
     healthCheckPath: /health
     autoDeploy: true
     disk:
