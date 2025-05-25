@@ -789,6 +789,27 @@ def handle_message(data):
             'request_id': request_id
         }, room=request.sid)
 
+@socketio.on('update_settings')
+def handle_update_settings(data):
+    """处理用户设置更新事件"""
+    session_id = request.sid
+    logger.debug(f"接收到设置更新请求: session_id={session_id}")
+    
+    # 更新API密钥
+    if 'api_key' in data and data['api_key']:
+        # 安全地记录日志，不显示完整API密钥
+        masked_key = data['api_key'][:5] + "..." + data['api_key'][-3:] if len(data['api_key']) > 8 else "***"
+        logger.debug(f"为会话 {session_id} 更新API密钥: {masked_key}")
+        user_api_keys[session_id] = data['api_key']
+    
+    # 更新实时搜索设置
+    if 'live_search_enabled' in data:
+        logger.debug(f"为会话 {session_id} 更新实时搜索设置: {data['live_search_enabled']}")
+        user_live_search_settings[session_id] = data['live_search_enabled']
+    
+    socketio.emit('settings_updated', {'success': True}, room=session_id)
+    logger.debug(f"设置更新完成: session_id={session_id}")
+
 if __name__ == '__main__':
     # Start cleanup task
     from threading import Thread

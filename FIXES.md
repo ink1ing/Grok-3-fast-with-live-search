@@ -49,7 +49,7 @@ curl http://localhost:10000/api/status
 ### 用户测试流程
 1. 访问 `http://localhost:10000`
 2. 点击设置按钮（齿轮图标）
-3. 输入API密钥: `xai-VT2kiahrHp06P6HXSECndDVKZIeIQmkmi44LONOsZuun7ENEeqnSSB9G3fJnGoweJ2izUSONx7t8sXCE`
+3. 输入您的API密钥: `xai-YOUR_API_KEY`
 4. 保存设置
 5. 发送测试消息验证功能
 
