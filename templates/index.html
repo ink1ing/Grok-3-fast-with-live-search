@@ -224,7 +224,7 @@
             border-top: 1px solid var(--border-color);
             background: rgba(22, 27, 34, 0.8);
         }
-        
+
         #settings-btn {
             width: 100%;
             padding: 12px 16px;
@@ -710,7 +710,7 @@
         @media (max-width: 768px) {
             :root {
                 --sidebar-width: 100%;
-            }
+        }
             
             #sidebar-toggle {
                 display: flex;
@@ -802,7 +802,7 @@
             
             .message {
                 max-width: 80%;
-            }
+        }
         }
         
         /* 大屏幕适配 */
@@ -817,7 +817,7 @@
             
             #chat-container {
                 padding: 30px 40px;
-            }
+        }
         }
         
         /* 滚动条样式 */
@@ -867,16 +867,16 @@
         <div class="sidebar-header">
             <button id="new-chat-btn">🚀 Start New Conversation</button>
         </div>
-        
+
         <div class="history-container">
-            <div class="history-list"></div>
+        <div class="history-list"></div>
         </div>
         
         <div class="sidebar-footer">
             <button id="settings-btn">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                    <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97 0-.33-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98 0 .33.03.65.07.97l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65z"/>
-                </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97 0-.33-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98 0 .33.03.65.07.97l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65z"/>
+            </svg>
                 Settings
             </button>
         </div>
@@ -974,7 +974,7 @@
             path: '/socket.io',
             transports: ['websocket', 'polling']
         });
-        
+            
         // DOM elements
         const chatContainer = document.getElementById('chat-container');
         const userInput = document.getElementById('user-input');
@@ -998,7 +998,7 @@
             document.getElementById('api-key').value = apiKey;
         }
         document.getElementById('live-search').checked = liveSearchEnabled;
-        
+
         // Socket connection events
         socket.on('connect', function() {
             console.log('WebSocket connection successful, ID:', socket.id);
@@ -1009,7 +1009,7 @@
                 socket.emit('update_settings', { api_key: apiKey });
             }
         });
-        
+
         socket.on('connect_error', (error) => {
             console.error('WebSocket connection error:', error);
             showNotification('Server connection failed, retrying...', 'error');
@@ -1018,7 +1018,7 @@
                 socket.connect();
             }, 3000);
         });
-        
+
         socket.on('disconnect', (reason) => {
             console.log('WebSocket disconnected, reason:', reason);
             showNotification('Server connection lost, reconnecting...', 'error');
@@ -1112,13 +1112,13 @@
             } else {
                 // AI message render Markdown
                 messageContent.innerHTML = renderMarkdown(content);
-                
+
                 // Re-render math formulas
                 if (window.MathJax && window.MathJax.typesetPromise) {
                     window.MathJax.typesetPromise([messageContent]).catch((err) => {
                         console.warn('MathJax rendering error:', err);
                     });
-                }
+        }
             }
             
             message.appendChild(messageContent);
@@ -1137,7 +1137,7 @@
             
             chatContainer.appendChild(message);
             chatContainer.scrollTop = chatContainer.scrollHeight;
-            
+
             // Hide title
             if (mainTitle.style.display !== 'none') {
                 mainTitle.style.opacity = '0';
@@ -1146,7 +1146,7 @@
                 }, 300);
             }
         }
-        
+
         // Send message
         function sendMessage() {
             const message = userInput.value.trim();
@@ -1207,7 +1207,7 @@
             
             showNotification('Settings saved', 'success');
             closeSettingsModal();
-        }
+                    }
         
         // Start new conversation
         function startNewChat() {
@@ -1219,7 +1219,7 @@
             mainTitle.style.opacity = '1';
             chatContainer.innerHTML = '';
             userInput.value = '';
-            thinking.style.display = 'none';
+                    thinking.style.display = 'none';
             currentConversationId = null;
             socket.emit('new_conversation');
         }
@@ -1230,7 +1230,7 @@
             chatContainer.innerHTML = '';
             socket.emit('get_conversation', { conversation_id: conversationId });
         }
-        
+
         // Update history list
         function updateHistoryList(conversations) {
             historyList.innerHTML = '';
@@ -1256,13 +1256,13 @@
                 historyList.appendChild(historyItem);
             });
         }
-        
+
         // Auto adjust input field height
         function autoResizeTextarea() {
             userInput.style.height = 'auto';
             userInput.style.height = Math.min(userInput.scrollHeight, 120) + 'px';
-        }
-        
+            }
+
         // Socket event listener
         socket.on('response', (data) => {
             console.log('Received response:', data);
@@ -1292,17 +1292,17 @@
                 currentConversationId = data.conversation_id;
             }
         });
-        
+
         socket.on('update_history', (data) => {
             updateHistoryList(data.conversations);
         });
-        
+
         socket.on('load_conversation', (data) => {
             data.messages.forEach(msg => {
                 addMessage(msg.content, msg.role === 'user');
             });
         });
-        
+
         socket.on('error', (data) => {
             console.error('Socket error event:', data);
             thinking.style.display = 'none';
@@ -1369,7 +1369,7 @@
                 document.body.classList.remove('sidebar-visible');
             }
         });
-        
+                
         // Click outside modal to close
         settingsModal.addEventListener('click', (e) => {
             if (e.target === settingsModal) {
@@ -1398,7 +1398,7 @@
             xOffset = 0;
             yOffset = 0;
         });
-        
+                
         // Initialize
         socket.emit('get_history');
         
@@ -1412,7 +1412,7 @@
                 socket.connect();
             }
         }, 30000);
-        
+
         console.log('Grok-3-Fast with Live Search application initialized');
     </script>
 </body>

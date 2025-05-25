@@ -31,4 +31,4 @@ echo "   Debug: $DEBUG"
 
 # Start the application
 echo "🎯 Starting application..."
-exec python chat.py 
+python chat.py 

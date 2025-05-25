@@ -377,7 +377,7 @@ def send_message(messages, api_key=None, enable_live_search=False):
             
             response_time = (datetime.now() - start_time).total_seconds()
             logger.debug(f"API request[{request_id}] response status: {response.status_code}, time: {response_time}s")
-            
+                
             # Handle different status codes
             if response.status_code == 200:
                 response_json = response.json()
@@ -519,12 +519,8 @@ def validate_api_key():
             return {'valid': False, 'error': '请求超时，请检查网络连接'}
         except requests.exceptions.ConnectionError:
             return {'valid': False, 'error': '网络连接失败，请检查网络设置'}
-        except Exception as e:
-            return {'valid': False, 'error': f'请求错误: {str(e)}'}
-            
     except Exception as e:
-        logger.error(f"API密钥验证错误: {str(e)}")
-        return {'valid': False, 'error': '验证过程中发生错误'}
+        return {'valid': False, 'error': f'请求错误: {str(e)}'}
 
 @socketio.on('get_history')
 def get_history():
@@ -814,18 +810,24 @@ if __name__ == '__main__':
     logger.info(f"💬 Max Messages per Conversation: {session_manager.max_messages_per_conversation}")
     logger.info(f"🔍 Live Search: Integrated with xAI API")
     
-    try:
-        # In cloud environments, host and port are usually automatically assigned
-        socketio.run(
-            app, 
-            host=host, 
-            port=port,
-            debug=debug_mode,
-            use_reloader=False,  # Disable reloader for production
-            log_output=debug_mode  # Only log output in debug mode
-        )
-    except Exception as e:
-        logger.error(f"❌ Failed to start server: {str(e)}")
-        import traceback
-        logger.error(traceback.format_exc())
-        exit(1)
+    # In cloud environments, host and port are usually automatically assigned
+    if os.environ.get('RENDER', '') == 'true':
+        # When running on Render, the app is started by gunicorn
+        # socketio configuration is handled by gunicorn settings
+        logger.info("Running on Render, letting gunicorn handle the app")
+    else:
+        # For local development, start the app directly
+        try:
+            socketio.run(
+                app, 
+                host=host, 
+                port=port,
+                debug=debug_mode,
+                use_reloader=False,  # Disable reloader for production
+                log_output=debug_mode  # Only log output in debug mode
+            )
+        except Exception as e:
+            logger.error(f"❌ Failed to start server: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            exit(1)
