@@ -13,6 +13,7 @@ A modern, responsive web interface for xAI's Grok-3-Fast model with integrated L
 - **💾 Conversation History**: Persistent chat history management
 - **🎨 Modern UI**: GitHub Dark theme with smooth animations
 - **⚡ Fast Deployment**: One-click deployment to Render
+- **🔒 Cloud-Ready**: Enhanced DNS resolution and SSL handling for cloud platforms
 
 ## 🚀 Quick Deploy to Render
 
@@ -69,10 +70,13 @@ A modern, responsive web interface for xAI's Grok-3-Fast model with integrated L
 |----------|---------|-------------|
 | `MODEL_NAME` | `grok-3-fast-latest` | xAI model to use |
 | `API_URL` | `https://api.x.ai/v1/chat/completions` | xAI API endpoint |
+| `API_IP` | `146.75.33.95` | Backup IP address for API (for DNS issues) |
 | `TEMPERATURE` | `0` | Model temperature (0-1) |
 | `PORT` | `10000` | Server port |
 | `HOST` | `0.0.0.0` | Server host |
 | `DEBUG` | `false` | Debug mode |
+| `RENDER` | `false` | Set to `true` when running on Render platform |
+| `DNS_SERVERS` | `8.8.8.8,1.1.1.1` | Custom DNS servers for resolution |
 
 ### Supported Models
 
@@ -87,6 +91,13 @@ A modern, responsive web interface for xAI's Grok-3-Fast model with integrated L
 - **Smart Search**: Automatic search decision based on query context
 - **Multiple Sources**: X (Twitter), web pages, news, RSS feeds
 - **Accurate Results**: Enhanced response accuracy with current information
+
+### Cloud-Ready Enhancements
+- **Robust DNS Resolution**: Custom DNS resolvers to avoid lookup failures
+- **IP Direct Connect**: Automatically uses IP direct connection when DNS fails
+- **SSL Recursion Fix**: Prevents Python SSL recursion errors in cloud environments
+- **Multi-level Fallbacks**: HTTP client fallbacks ensure reliable API connection
+- **Detailed Diagnostics**: Enhanced logging for troubleshooting
 
 ### Modern Interface
 - **Responsive Design**: Works perfectly on all devices
@@ -108,6 +119,7 @@ A modern, responsive web interface for xAI's Grok-3-Fast model with integrated L
 - Automatic builds and deployments
 - Free tier available
 - Custom domain support
+- Enhanced DNS and SSL handling for Render environment
 
 ### Heroku
 ```bash
@@ -137,6 +149,20 @@ docker run -p 10000:10000 -e MODEL_NAME=grok-3-fast-latest grok3-fast
 - **Rate Limiting**: Built-in request throttling
 - **SSL/TLS**: HTTPS enforcement in production
 - **XSS Protection**: Content Security Policy headers
+
+## 🛠️ Troubleshooting
+
+### SSL Issues
+If you encounter SSL recursion errors, check the `SSL_FIX.md` document for details on the implemented solution. The app includes several layers of SSL error handling to ensure reliable operation in cloud environments.
+
+### DNS Resolution Problems
+For DNS resolution issues, see `RENDER_FIXES.md` for the implemented fixes. The application can automatically switch to IP direct connection when DNS resolution fails.
+
+### Testing Tools
+- Run `python test_ssl_fix.py` to verify SSL fixes
+- Visit `/socket-test` endpoint to test WebSocket connectivity
+- Check `/health` endpoint for application status
+- Use `/api/status` to verify API configuration
 
 ## 🤝 Contributing
 

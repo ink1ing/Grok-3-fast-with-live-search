@@ -32,18 +32,21 @@ logger = logging.getLogger(__name__)
 logger.info("Applying SSL fix to avoid recursion errors...")
 
 try:
-    # Create custom SSL context that doesn't verify certificates
-    # This helps avoid SSL recursion errors in Python's SSL module
-    ssl._create_default_https_context = ssl._create_unverified_context
-    logger.debug("Custom SSL context set")
-    
-    # Import and configure urllib3 to ignore SSL warnings
+    # 使用更安全的方式避免SSL递归错误
     import urllib3
+    
+    # 禁用urllib3警告
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     logger.debug("urllib3 warnings disabled")
     
-    # Patch requests session to bypass SSL verification
-    # This prevents recursion errors in the requests library's SSL handling
+    # 创建一个全局的SSL上下文，不进行证书验证
+    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    ssl_context.set_ciphers('DEFAULT@SECLEVEL=1')  # 允许更宽松的密码套件
+    logger.debug("Created custom SSL context with verification disabled")
+    
+    # 修改requests库的会话设置，避免递归
     old_merge_environment_settings = requests.Session.merge_environment_settings
     
     def patched_merge_environment_settings(self, url, proxies, stream, verify, cert):
@@ -52,9 +55,13 @@ try:
         return settings
     
     requests.Session.merge_environment_settings = patched_merge_environment_settings
-    logger.debug("Requests session settings patched")
+    logger.debug("Patched requests session settings")
     
-    # Disable SSL warnings at package level
+    # 修改urllib3的SSL验证方式
+    urllib3.util.ssl_.create_default_context = lambda: ssl_context
+    logger.debug("Modified urllib3 SSL context creation")
+    
+    # 禁用requests的SSL警告
     requests.packages.urllib3.disable_warnings()
     
     logger.info("SSL fix successfully applied")
@@ -442,17 +449,49 @@ def send_message(messages, api_key=None, enable_live_search=False):
                     ip_url = f"{scheme}://{resolved_ip}{path}"
                     logger.info(f"API request[{request_id}] 使用解析的IP: {ip_url}")
                     api_request_url = ip_url
-                    use_ip_direct = True
+        
+        # 创建带自定义SSL上下文的会话
+        try:
+            session = requests.Session()
+            
+            # 直接创建适配器并设置SSL上下文
+            from requests.adapters import HTTPAdapter
+            from urllib3.poolmanager import PoolManager
+            
+            class CustomSSLAdapter(HTTPAdapter):
+                def init_poolmanager(self, connections, maxsize, block=False):
+                    self.poolmanager = PoolManager(
+                        num_pools=connections,
+                        maxsize=maxsize,
+                        block=block,
+                        ssl_version=ssl.PROTOCOL_TLS_CLIENT,
+                        ssl_context=ssl_context
+                    )
+            
+            # 为http和https设置适配器
+            adapter = CustomSSLAdapter()
+            session.mount('https://', adapter)
+            session.mount('http://', adapter)
+            
+            logger.debug(f"API request[{request_id}] 创建了自定义SSL会话")
+            
+        except Exception as e:
+            logger.warning(f"API request[{request_id}] 无法创建自定义SSL会话: {str(e)}, 使用标准会话")
+            session = requests.Session()
+        
+        # 设置会话不验证SSL
+        session.verify = False
         
         while retry_count <= max_retries:
             try:
                 logger.debug(f"API request[{request_id}] 尝试 #{retry_count+1} 发送请求到 {api_request_url}")
-                response = requests.post(
+                
+                # 使用会话发送请求
+                response = session.post(
                     api_request_url, 
                     json=data, 
                     headers=headers, 
-                    timeout=30,
-                    verify=False  # 禁用SSL验证以避免问题
+                    timeout=30
                 )
                 
                 response_time = (datetime.now() - start_time).total_seconds()
@@ -534,6 +573,61 @@ def send_message(messages, api_key=None, enable_live_search=False):
                 
                 time.sleep(1)  # 短暂延迟后重试
                 
+            except RecursionError as e:
+                logger.error(f"API request[{request_id}] 递归错误: {str(e)}")
+                
+                # 尝试使用低级HTTP客户端作为后备方案
+                try:
+                    logger.info(f"API request[{request_id}] 尝试使用http.client作为后备方案")
+                    
+                    # 获取主机和路径
+                    parsed_url = urlparse(api_request_url)
+                    host = parsed_url.netloc
+                    path = parsed_url.path or '/'
+                    
+                    # 准备JSON数据
+                    import json
+                    json_data = json.dumps(data).encode('utf-8')
+                    
+                    # 建立连接
+                    if parsed_url.scheme == 'https':
+                        conn = http.client.HTTPSConnection(host, context=ssl_context, timeout=30)
+                    else:
+                        conn = http.client.HTTPConnection(host, timeout=30)
+                    
+                    # 发送请求
+                    conn.request(
+                        "POST", 
+                        path, 
+                        body=json_data, 
+                        headers=headers
+                    )
+                    
+                    # 获取响应
+                    http_response = conn.getresponse()
+                    response_data = http_response.read().decode('utf-8')
+                    
+                    # 处理响应
+                    if http_response.status == 200:
+                        response_json = json.loads(response_data)
+                        token_count = calculate_tokens(messages)
+                        response_time = (datetime.now() - start_time).total_seconds()
+                        
+                        logger.info(f"API request[{request_id}] 后备方案成功，总时间: {response_time}s")
+                        
+                        return {
+                            'response': response_json,
+                            'response_time': response_time,
+                            'token_count': token_count
+                        }
+                    else:
+                        logger.error(f"API request[{request_id}] 后备方案返回错误: {http_response.status}")
+                        return {'error': f'API error: {http_response.status}'}
+                        
+                except Exception as backup_error:
+                    logger.error(f"API request[{request_id}] 后备方案失败: {str(backup_error)}")
+                    return {'error': 'SSL recursion error occurred. Please try again later.'}
+                
             except requests.exceptions.RequestException as e:
                 retry_count += 1
                 logger.warning(f"API request[{request_id}] 请求错误: {str(e)}，重试 {retry_count}/{max_retries}")
@@ -542,6 +636,9 @@ def send_message(messages, api_key=None, enable_live_search=False):
                     return {'error': f'API request error: {str(e)}'}
                 time.sleep(1)  # 短暂延迟后重试
                     
+    except RecursionError as e:
+        error_trace = log_exception(e, "SSL recursion error in API request")
+        return {'error': 'SSL recursion error occurred. Please try again later.'}
     except Exception as e:
         error_trace = log_exception(e, "Unknown error during message send")
         return {'error': 'Unknown error occurred, please try again later'}
@@ -646,12 +743,44 @@ def validate_api_key():
                     api_request_url = ip_url
         
         try:
-            response = requests.post(
+            # 创建带自定义SSL上下文的会话
+            try:
+                session = requests.Session()
+                
+                # 直接创建适配器并设置SSL上下文
+                from requests.adapters import HTTPAdapter
+                from urllib3.poolmanager import PoolManager
+                
+                class CustomSSLAdapter(HTTPAdapter):
+                    def init_poolmanager(self, connections, maxsize, block=False):
+                        self.poolmanager = PoolManager(
+                            num_pools=connections,
+                            maxsize=maxsize,
+                            block=block,
+                            ssl_version=ssl.PROTOCOL_TLS_CLIENT,
+                            ssl_context=ssl_context
+                        )
+                
+                # 为http和https设置适配器
+                adapter = CustomSSLAdapter()
+                session.mount('https://', adapter)
+                session.mount('http://', adapter)
+                
+                logger.debug(f"API验证: 创建了自定义SSL会话")
+                
+            except Exception as e:
+                logger.warning(f"API验证: 无法创建自定义SSL会话: {str(e)}, 使用标准会话")
+                session = requests.Session()
+            
+            # 设置会话不验证SSL
+            session.verify = False
+            
+            # 使用会话发送请求
+            response = session.post(
                 api_request_url, 
                 headers=headers, 
                 json=data_payload, 
-                timeout=10, 
-                verify=False
+                timeout=10
             )
             
             if response.status_code == 200:
@@ -667,6 +796,52 @@ def validate_api_key():
                 except:
                     error_msg = f'API请求失败: {response.status_code}'
                 return {'valid': False, 'error': error_msg}
+        
+        except RecursionError as e:
+            logger.error(f"API验证: 递归错误: {str(e)}")
+            
+            # 尝试使用低级HTTP客户端作为后备方案
+            try:
+                logger.info(f"API验证: 尝试使用http.client作为后备方案")
+                
+                # 获取主机和路径
+                parsed_url = urlparse(api_request_url)
+                host = parsed_url.netloc
+                path = parsed_url.path or '/'
+                
+                # 准备JSON数据
+                import json
+                json_data = json.dumps(data_payload).encode('utf-8')
+                
+                # 建立连接
+                if parsed_url.scheme == 'https':
+                    conn = http.client.HTTPSConnection(host, context=ssl_context, timeout=10)
+                else:
+                    conn = http.client.HTTPConnection(host, timeout=10)
+                
+                # 发送请求
+                conn.request(
+                    "POST", 
+                    path, 
+                    body=json_data, 
+                    headers=headers
+                )
+                
+                # 获取响应
+                http_response = conn.getresponse()
+                
+                if http_response.status == 200:
+                    return {'valid': True, 'message': 'API密钥验证成功 (通过后备方法)'}
+                elif http_response.status == 401:
+                    return {'valid': False, 'error': 'API密钥无效或已过期'}
+                elif http_response.status == 403:
+                    return {'valid': False, 'error': 'API访问被拒绝，请检查密钥权限'}
+                else:
+                    return {'valid': False, 'error': f'API请求失败: {http_response.status}'}
+                    
+            except Exception as backup_error:
+                logger.error(f"API验证: 后备方案失败: {str(backup_error)}")
+                return {'valid': False, 'error': 'SSL验证错误，无法连接到API服务器'}
                 
         except requests.exceptions.Timeout:
             return {'valid': False, 'error': '请求超时，请检查网络连接'}

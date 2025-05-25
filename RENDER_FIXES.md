@@ -13,7 +13,19 @@ Error: Network connection failed, please check your internet connection
 HTTPSConnectionPool(host='api.x.ai', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x778b864bd6d0>: Failed to resolve 'api.x.ai' ([Errno -3] Lookup timed out)"))
 ```
 
+## SSL递归错误问题
+
+另一个常见问题是SSL递归错误：
+
+```
+RecursionError: maximum recursion depth exceeded while calling a Python object
+```
+
+这是Python的SSL模块中的一个已知问题，特别是在使用requests库与TLS连接时。
+
 ## 解决方案
+
+### DNS解析问题解决方案
 
 1. **IP直连模式**：
    - 添加了`API_IP`环境变量，配置为`api.x.ai`的IP地址
@@ -30,9 +42,27 @@ HTTPSConnectionPool(host='api.x.ai', port=443): Max retries exceeded with url: /
    - 在重试过程中自动切换到IP直连模式
    - 增加了详细的日志记录，便于诊断
 
-4. **错误处理**：
-   - 改进了前端错误处理，提供更友好的错误信息
-   - 增加了对特定网络错误的处理
+### SSL递归错误解决方案
+
+1. **自定义SSL上下文**：
+   - 创建一个全局的SSL上下文，不进行证书验证
+   - 设置宽松的密码套件，避免SSL验证问题
+   - 禁用主机名验证，确保IP直连可以正常工作
+
+2. **HTTP适配器注入**：
+   - 为requests会话创建自定义HTTP适配器
+   - 直接注入自定义SSL上下文到底层连接池
+   - 避免使用默认的SSL上下文创建方法，防止递归
+
+3. **备用HTTP客户端**：
+   - 当检测到递归错误时，自动切换到低级http.client库
+   - 绕过requests库的SSL处理层，直接使用Python内置HTTP客户端
+   - 确保即使在极端情况下也能完成API调用
+
+4. **多层错误处理**：
+   - 专门捕获并处理RecursionError异常
+   - 增强日志记录，帮助诊断SSL相关问题
+   - 优化错误消息，提供更友好的用户体验
 
 ## 部署说明
 
@@ -58,6 +88,7 @@ HTTPSConnectionPool(host='api.x.ai', port=443): Max retries exceeded with url: /
 1. 访问应用的`/health`端点，确保应用正常运行
 2. 访问`/socket-test`页面，测试WebSocket连接是否正常
 3. 在聊天界面输入消息，验证API连接是否成功
+4. 检查日志中是否还有递归错误或DNS解析错误
 
 ## 未来维护
 
@@ -73,4 +104,7 @@ HTTPSConnectionPool(host='api.x.ai', port=443): Max retries exceeded with url: /
 1. DNS手动解析 - 使用dnspython库或socket.gethostbyname
 2. HTTP头部修改 - 使用Host头确保API服务器识别请求
 3. 网络重试策略 - 包括错误检测和备用方案
-4. 环境检测 - 识别Render环境并应用特定配置 
+4. 环境检测 - 识别Render环境并应用特定配置
+5. 自定义SSL上下文 - 避免Python SSL模块中的递归问题
+6. HTTP适配器注入 - 绕过requests的默认SSL处理
+7. 多层错误处理 - 确保应用在各种网络条件下都能正常工作 
