@@ -453,7 +453,6 @@ def send_message(messages, api_key=None, enable_live_search=False):
         # 记录内存使用情况，帮助诊断
         try:
             import psutil
-            import os
             process = psutil.Process(os.getpid())
             mem_info = process.memory_info()
             logger.debug(f"API request[{request_id}] Memory usage before request: {mem_info.rss / 1024 / 1024:.2f} MB")
@@ -535,7 +534,6 @@ def send_message(messages, api_key=None, enable_live_search=False):
                 )
                 
                 # 获取响应
-                logger.debug(f"API request[{request_id}] 获取http.client响应")
                 http_response = conn.getresponse()
                 response_data = http_response.read().decode('utf-8')
                 
@@ -723,6 +721,7 @@ def use_http_client_fallback(request_id, api_request_url, headers, data, message
     
     try:
         # 获取主机和路径
+        from urllib.parse import urlparse
         parsed_url = urlparse(api_request_url)
         host = parsed_url.netloc
         path = parsed_url.path or '/'
@@ -731,46 +730,73 @@ def use_http_client_fallback(request_id, api_request_url, headers, data, message
         import json
         json_data = json.dumps(data).encode('utf-8')
         
-        # 建立连接
         logger.debug(f"API request[{request_id}] 创建http.client连接到 {host}")
-        if parsed_url.scheme == 'https':
-            conn = http.client.HTTPSConnection(host, context=ssl_context, timeout=30)
-        else:
-            conn = http.client.HTTPConnection(host, timeout=30)
         
-        # 发送请求
-        logger.debug(f"API request[{request_id}] 使用http.client发送请求")
-        conn.request(
-            "POST", 
-            path, 
-            body=json_data, 
-            headers=headers
-        )
-        
-        # 获取响应
-        logger.debug(f"API request[{request_id}] 获取http.client响应")
-        http_response = conn.getresponse()
-        response_data = http_response.read().decode('utf-8')
-        
-        # 处理响应
-        if http_response.status == 200:
-            response_json = json.loads(response_data)
-            token_count = calculate_tokens(messages)
-            response_time = (datetime.now() - start_time).total_seconds()
+        # 建立连接
+        try:
+            if parsed_url.scheme == 'https':
+                conn = http.client.HTTPSConnection(host, context=ssl_context, timeout=30)
+            else:
+                conn = http.client.HTTPConnection(host, timeout=30)
             
-            logger.info(f"API request[{request_id}] 后备方案成功，总时间: {response_time}s")
+            # 发送请求
+            logger.debug(f"API request[{request_id}] 使用http.client发送请求")
+            conn.request(
+                "POST", 
+                path, 
+                body=json_data, 
+                headers=headers
+            )
             
-            return {
-                'response': response_json,
-                'response_time': response_time,
-                'token_count': token_count
-            }
-        else:
-            logger.error(f"API request[{request_id}] 后备方案返回错误: {http_response.status}")
-            return {'error': f'API error: {http_response.status}'}
+            # 获取响应
+            logger.debug(f"API request[{request_id}] 获取http.client响应")
+            http_response = conn.getresponse()
+            response_data = http_response.read().decode('utf-8')
+            
+            # 关闭连接
+            conn.close()
+            
+            # 处理响应
+            if http_response.status == 200:
+                try:
+                    response_json = json.loads(response_data)
+                    token_count = calculate_tokens(messages)
+                    response_time = (datetime.now() - start_time).total_seconds()
+                    
+                    logger.info(f"API request[{request_id}] 后备方案成功，总时间: {response_time}s")
+                    
+                    return {
+                        'response': response_json,
+                        'response_time': response_time,
+                        'token_count': token_count
+                    }
+                except json.JSONDecodeError as je:
+                    logger.error(f"API request[{request_id}] 无法解析JSON响应: {str(je)}")
+                    return {'error': 'Invalid JSON response from API server'}
+            elif http_response.status == 401:
+                return {'error': 'Invalid or expired API key, please update your API key'}
+            elif http_response.status == 403:
+                return {'error': 'API access denied - please check your API key and permissions'}
+            elif http_response.status == 429:
+                return {'error': 'API request rate limit exceeded, please try again later'}
+            else:
+                logger.error(f"API request[{request_id}] 后备方案返回错误: {http_response.status}")
+                return {'error': f'API error: {http_response.status}'}
+                
+        except http.client.HTTPException as he:
+            logger.error(f"API request[{request_id}] HTTP客户端异常: {str(he)}")
+            return {'error': f'HTTP connection error: {str(he)}'}
+        except socket.error as se:
+            logger.error(f"API request[{request_id}] 套接字错误: {str(se)}")
+            return {'error': f'Network connection error: {str(se)}'}
+        except ssl.SSLError as ssle:
+            logger.error(f"API request[{request_id}] SSL错误: {str(ssle)}")
+            return {'error': f'SSL error: {str(ssle)}'}
             
     except Exception as backup_error:
         logger.error(f"API request[{request_id}] 后备方案失败: {str(backup_error)}")
+        import traceback
+        logger.error(f"API request[{request_id}] 错误详情: {traceback.format_exc()}")
         return {'error': 'SSL recursion error occurred. Fallback method also failed. Please try again later.'}
 
 @app.route('/')
