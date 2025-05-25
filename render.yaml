@@ -30,6 +30,10 @@ services:
         value: "yes"
       - key: DNS_SERVERS
         value: "8.8.8.8,8.8.4.4,1.1.1.1"
+      - key: USE_LOW_LEVEL_HTTP
+        value: "true"
+      - key: PYTHONPATH
+        value: "/opt/render/project/src"
     healthCheckPath: /health
     autoDeploy: true
     disk:

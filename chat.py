@@ -32,6 +32,29 @@ logger = logging.getLogger(__name__)
 logger.info("Applying SSL fix to avoid recursion errors...")
 
 try:
+    # 递归错误检测函数
+    def debug_recursion():
+        import sys
+        import traceback
+        
+        frame = sys._getframe()
+        frames = []
+        visited = set()
+        
+        # 收集调用栈信息
+        while frame:
+            frame_id = id(frame)
+            if frame_id in visited:
+                logger.critical("RECURSION DETECTED IN CALL STACK!")
+                for i, f in enumerate(frames):
+                    logger.critical(f"Frame {i}: {f.f_code.co_filename}:{f.f_lineno} in {f.f_code.co_name}")
+                return True
+            visited.add(frame_id)
+            frames.append(frame)
+            frame = frame.f_back
+        
+        return False
+    
     # 使用更安全的方式避免SSL递归错误
     import urllib3
     
@@ -46,6 +69,18 @@ try:
     ssl_context.set_ciphers('DEFAULT@SECLEVEL=1')  # 允许更宽松的密码套件
     logger.debug("Created custom SSL context with verification disabled")
     
+    # 保存原始的SSL方法
+    original_default_https_context = getattr(ssl, '_create_default_https_context', None)
+    
+    # 定义一个安全的创建SSL上下文的函数
+    def safe_create_context(*args, **kwargs):
+        logger.debug("Using safe SSL context creation method")
+        return ssl_context
+    
+    # 替换SSL方法
+    if hasattr(ssl, '_create_default_https_context'):
+        ssl._create_default_https_context = safe_create_context
+    
     # 修改requests库的会话设置，避免递归
     old_merge_environment_settings = requests.Session.merge_environment_settings
     
@@ -58,7 +93,7 @@ try:
     logger.debug("Patched requests session settings")
     
     # 修改urllib3的SSL验证方式
-    urllib3.util.ssl_.create_default_context = lambda: ssl_context
+    urllib3.util.ssl_.create_default_context = safe_create_context
     logger.debug("Modified urllib3 SSL context creation")
     
     # 禁用requests的SSL警告
@@ -363,6 +398,11 @@ def send_message(messages, api_key=None, enable_live_search=False):
         return {'error': 'Please configure a valid API key in settings'}
     
     try:
+        # 先检查是否已经处于递归状态
+        if debug_recursion():
+            logger.critical("Recursion detected before API request - using fallback method")
+            return {'error': 'SSL recursion error detected, using fallback method'}
+            
         # Validate message format
         if not isinstance(messages, list):
             logger.error("Invalid message format: not a list")
@@ -410,6 +450,18 @@ def send_message(messages, api_key=None, enable_live_search=False):
         
         start_time = datetime.now()
         
+        # 记录内存使用情况，帮助诊断
+        try:
+            import psutil
+            import os
+            process = psutil.Process(os.getpid())
+            mem_info = process.memory_info()
+            logger.debug(f"API request[{request_id}] Memory usage before request: {mem_info.rss / 1024 / 1024:.2f} MB")
+        except ImportError:
+            logger.debug(f"API request[{request_id}] psutil not installed, skipping memory diagnostics")
+        except Exception as e:
+            logger.debug(f"API request[{request_id}] Error getting memory info: {str(e)}")
+        
         # Use requests library with proper error handling
         import requests
         from urllib.parse import urlparse
@@ -449,9 +501,67 @@ def send_message(messages, api_key=None, enable_live_search=False):
                     ip_url = f"{scheme}://{resolved_ip}{path}"
                     logger.info(f"API request[{request_id}] 使用解析的IP: {ip_url}")
                     api_request_url = ip_url
+                    use_ip_direct = True
+        
+        # 尝试使用http.client直接发送请求 - 完全绕过requests库
+        try_low_level_client_first = os.environ.get('USE_LOW_LEVEL_HTTP', '').lower() == 'true'
+        
+        if try_low_level_client_first:
+            logger.info(f"API request[{request_id}] 优先使用低级HTTP客户端")
+            try:
+                # 获取主机和路径
+                parsed_url = urlparse(api_request_url)
+                host = parsed_url.netloc
+                path = parsed_url.path or '/'
+                
+                # 准备JSON数据
+                import json
+                json_data = json.dumps(data).encode('utf-8')
+                
+                logger.debug(f"API request[{request_id}] 尝试使用http.client连接到 {host}")
+                
+                # 建立连接
+                if parsed_url.scheme == 'https':
+                    conn = http.client.HTTPSConnection(host, context=ssl_context, timeout=30)
+                else:
+                    conn = http.client.HTTPConnection(host, timeout=30)
+                
+                # 发送请求
+                conn.request(
+                    "POST", 
+                    path, 
+                    body=json_data, 
+                    headers=headers
+                )
+                
+                # 获取响应
+                logger.debug(f"API request[{request_id}] 获取http.client响应")
+                http_response = conn.getresponse()
+                response_data = http_response.read().decode('utf-8')
+                
+                # 处理响应
+                if http_response.status == 200:
+                    response_json = json.loads(response_data)
+                    token_count = calculate_tokens(messages)
+                    response_time = (datetime.now() - start_time).total_seconds()
+                    
+                    logger.info(f"API request[{request_id}] 低级HTTP客户端成功，总时间: {response_time}s")
+                    
+                    return {
+                        'response': response_json,
+                        'response_time': response_time,
+                        'token_count': token_count
+                    }
+                else:
+                    logger.warning(f"API request[{request_id}] 低级HTTP客户端返回非200状态码: {http_response.status}")
+                    # 继续尝试使用requests库
+            except Exception as direct_error:
+                logger.warning(f"API request[{request_id}] 低级HTTP客户端失败: {str(direct_error)}")
+                # 继续尝试使用requests库
         
         # 创建带自定义SSL上下文的会话
         try:
+            logger.debug(f"API request[{request_id}] 创建自定义SSL会话")
             session = requests.Session()
             
             # 直接创建适配器并设置SSL上下文
@@ -460,6 +570,7 @@ def send_message(messages, api_key=None, enable_live_search=False):
             
             class CustomSSLAdapter(HTTPAdapter):
                 def init_poolmanager(self, connections, maxsize, block=False):
+                    logger.debug(f"API request[{request_id}] 初始化连接池管理器")
                     self.poolmanager = PoolManager(
                         num_pools=connections,
                         maxsize=maxsize,
@@ -484,6 +595,11 @@ def send_message(messages, api_key=None, enable_live_search=False):
         
         while retry_count <= max_retries:
             try:
+                # 再次检查是否已经处于递归状态
+                if debug_recursion():
+                    logger.critical(f"API request[{request_id}] 递归检测在请求前触发 - 使用备用方法")
+                    return use_http_client_fallback(request_id, api_request_url, headers, data, messages, start_time)
+                
                 logger.debug(f"API request[{request_id}] 尝试 #{retry_count+1} 发送请求到 {api_request_url}")
                 
                 # 使用会话发送请求
@@ -575,58 +691,10 @@ def send_message(messages, api_key=None, enable_live_search=False):
                 
             except RecursionError as e:
                 logger.error(f"API request[{request_id}] 递归错误: {str(e)}")
+                # 添加递归调用栈详情
+                debug_recursion()
                 
-                # 尝试使用低级HTTP客户端作为后备方案
-                try:
-                    logger.info(f"API request[{request_id}] 尝试使用http.client作为后备方案")
-                    
-                    # 获取主机和路径
-                    parsed_url = urlparse(api_request_url)
-                    host = parsed_url.netloc
-                    path = parsed_url.path or '/'
-                    
-                    # 准备JSON数据
-                    import json
-                    json_data = json.dumps(data).encode('utf-8')
-                    
-                    # 建立连接
-                    if parsed_url.scheme == 'https':
-                        conn = http.client.HTTPSConnection(host, context=ssl_context, timeout=30)
-                    else:
-                        conn = http.client.HTTPConnection(host, timeout=30)
-                    
-                    # 发送请求
-                    conn.request(
-                        "POST", 
-                        path, 
-                        body=json_data, 
-                        headers=headers
-                    )
-                    
-                    # 获取响应
-                    http_response = conn.getresponse()
-                    response_data = http_response.read().decode('utf-8')
-                    
-                    # 处理响应
-                    if http_response.status == 200:
-                        response_json = json.loads(response_data)
-                        token_count = calculate_tokens(messages)
-                        response_time = (datetime.now() - start_time).total_seconds()
-                        
-                        logger.info(f"API request[{request_id}] 后备方案成功，总时间: {response_time}s")
-                        
-                        return {
-                            'response': response_json,
-                            'response_time': response_time,
-                            'token_count': token_count
-                        }
-                    else:
-                        logger.error(f"API request[{request_id}] 后备方案返回错误: {http_response.status}")
-                        return {'error': f'API error: {http_response.status}'}
-                        
-                except Exception as backup_error:
-                    logger.error(f"API request[{request_id}] 后备方案失败: {str(backup_error)}")
-                    return {'error': 'SSL recursion error occurred. Please try again later.'}
+                return use_http_client_fallback(request_id, api_request_url, headers, data, messages, start_time)
                 
             except requests.exceptions.RequestException as e:
                 retry_count += 1
@@ -638,10 +706,72 @@ def send_message(messages, api_key=None, enable_live_search=False):
                     
     except RecursionError as e:
         error_trace = log_exception(e, "SSL recursion error in API request")
+        # 添加递归调用栈详情
+        debug_recursion()
         return {'error': 'SSL recursion error occurred. Please try again later.'}
     except Exception as e:
         error_trace = log_exception(e, "Unknown error during message send")
         return {'error': 'Unknown error occurred, please try again later'}
+
+# 提取HTTP客户端作为独立函数，用作备用方案
+def use_http_client_fallback(request_id, api_request_url, headers, data, messages, start_time):
+    """使用http.client作为备用HTTP客户端
+    
+    当requests库发生递归错误时使用此函数作为备用方案
+    """
+    logger.info(f"API request[{request_id}] 尝试使用http.client作为后备方案")
+    
+    try:
+        # 获取主机和路径
+        parsed_url = urlparse(api_request_url)
+        host = parsed_url.netloc
+        path = parsed_url.path or '/'
+        
+        # 准备JSON数据
+        import json
+        json_data = json.dumps(data).encode('utf-8')
+        
+        # 建立连接
+        logger.debug(f"API request[{request_id}] 创建http.client连接到 {host}")
+        if parsed_url.scheme == 'https':
+            conn = http.client.HTTPSConnection(host, context=ssl_context, timeout=30)
+        else:
+            conn = http.client.HTTPConnection(host, timeout=30)
+        
+        # 发送请求
+        logger.debug(f"API request[{request_id}] 使用http.client发送请求")
+        conn.request(
+            "POST", 
+            path, 
+            body=json_data, 
+            headers=headers
+        )
+        
+        # 获取响应
+        logger.debug(f"API request[{request_id}] 获取http.client响应")
+        http_response = conn.getresponse()
+        response_data = http_response.read().decode('utf-8')
+        
+        # 处理响应
+        if http_response.status == 200:
+            response_json = json.loads(response_data)
+            token_count = calculate_tokens(messages)
+            response_time = (datetime.now() - start_time).total_seconds()
+            
+            logger.info(f"API request[{request_id}] 后备方案成功，总时间: {response_time}s")
+            
+            return {
+                'response': response_json,
+                'response_time': response_time,
+                'token_count': token_count
+            }
+        else:
+            logger.error(f"API request[{request_id}] 后备方案返回错误: {http_response.status}")
+            return {'error': f'API error: {http_response.status}'}
+            
+    except Exception as backup_error:
+        logger.error(f"API request[{request_id}] 后备方案失败: {str(backup_error)}")
+        return {'error': 'SSL recursion error occurred. Fallback method also failed. Please try again later.'}
 
 @app.route('/')
 def index():
