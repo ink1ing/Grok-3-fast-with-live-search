@@ -80,12 +80,14 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key')
 # Configure SocketIO with cloud-friendly options
 socketio = SocketIO(
     app,
-    cors_allowed_origins="*",  # Allow cross-origin requests
-    ping_timeout=60,          # Reduce timeout for better cloud compatibility
-    ping_interval=25,         # Increase ping interval for cloud stability
-    async_mode='threading',   # Use threading for better compatibility
-    logger=False,             # Disable SocketIO logging in production
-    engineio_logger=False     # Disable Engine.IO logging in production
+    cors_allowed_origins="*",     # Allow cross-origin requests
+    ping_timeout=90,              # 增加ping超时时间
+    ping_interval=25,             # 保持良好的ping间隔
+    async_mode='eventlet',        # 在Render上使用eventlet，与gunicorn配置一致
+    manage_session=True,          # 自动管理session
+    logger=True,                  # 在调试阶段开启日志
+    engineio_logger=True,         # 在调试阶段开启Engine.IO日志
+    cookie=False                  # 避免cookie问题
 )
 
 # API endpoint for Grok API
@@ -809,6 +811,53 @@ def handle_update_settings(data):
     
     socketio.emit('settings_updated', {'success': True}, room=session_id)
     logger.debug(f"设置更新完成: session_id={session_id}")
+
+@app.route('/socket-test')
+def socket_test():
+    """WebSocket连接测试页面"""
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>WebSocket测试</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    </head>
+    <body>
+        <h1>WebSocket连接测试</h1>
+        <div id="status">正在连接...</div>
+        <script>
+            const status = document.getElementById('status');
+            const socket = io(window.location.origin, {
+                path: '/socket.io',
+                transports: ['polling', 'websocket'],
+                upgrade: true
+            });
+            
+            socket.on('connect', () => {
+                status.textContent = '✅ 连接成功！Socket ID: ' + socket.id;
+                status.style.color = 'green';
+            });
+            
+            socket.on('connect_error', (error) => {
+                status.textContent = '❌ 连接失败: ' + error.message;
+                status.style.color = 'red';
+                console.error('连接错误:', error);
+            });
+            
+            socket.on('disconnect', (reason) => {
+                status.textContent = '❌ 连接断开: ' + reason;
+                status.style.color = 'orange';
+            });
+        </script>
+    </body>
+    </html>
+    """
+
+@socketio.on('ping_test')
+def handle_ping_test():
+    """处理WebSocket ping测试"""
+    logger.debug(f"收到ping_test请求: session_id={request.sid}")
+    socketio.emit('pong_test', {'success': True, 'timestamp': datetime.now().isoformat()}, room=request.sid)
 
 if __name__ == '__main__':
     # Start cleanup task

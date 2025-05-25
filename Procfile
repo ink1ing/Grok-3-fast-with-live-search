@@ -1,1 +1,1 @@
-web: gunicorn -k eventlet -w 1 chat:app
+web: gunicorn -k eventlet -w 1 --timeout 120 --worker-connections=1000 chat:app

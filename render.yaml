@@ -4,7 +4,7 @@ services:
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -k eventlet -w 1 chat:app
+    startCommand: gunicorn -k eventlet -w 1 --timeout 120 --worker-connections=1000 chat:app
     envVars:
       - key: API_URL
         value: https://api.x.ai/v1/chat/completions
@@ -24,6 +24,8 @@ services:
         value: "1"
       - key: RENDER
         value: "true"
+      - key: EVENTLET_NO_GREENDNS
+        value: "yes"
     healthCheckPath: /health
     autoDeploy: true
     disk:

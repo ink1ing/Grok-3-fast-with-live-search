@@ -972,7 +972,12 @@
         // Initialize Socket.IO connection
         const socket = io(socketUrl, {
             path: '/socket.io',
-            transports: ['websocket', 'polling']
+            transports: ['polling', 'websocket'],  // 调整优先级，先尝试polling再尝试websocket
+            upgrade: true,                         // 允许升级连接
+            rememberUpgrade: true,                 // 记住升级连接
+            reconnectionAttempts: 10,              // 重连尝试次数
+            reconnectionDelay: 1000,               // 重连延迟
+            timeout: 20000                         // 连接超时时间
         });
             
         // DOM elements
@@ -1012,8 +1017,15 @@
 
         socket.on('connect_error', (error) => {
             console.error('WebSocket connection error:', error);
+            console.error('Error details:', error.message, error.type, error.description);
             showNotification('Server connection failed, retrying...', 'error');
             socketReconnecting = true;
+            // 记录详细的连接错误信息
+            console.log('Navigator online:', navigator.onLine);
+            console.log('Current URL:', window.location.href);
+            console.log('Socket URL:', socketUrl);
+            console.log('Transport options:', socket.io.opts.transports);
+            
             setTimeout(() => {
                 socket.connect();
             }, 3000);
