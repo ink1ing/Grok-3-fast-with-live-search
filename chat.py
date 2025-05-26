@@ -519,41 +519,55 @@ def send_message(messages, api_key=None, enable_live_search=False):
                 logger.debug(f"API request[{request_id}] 尝试使用http.client连接到 {host}")
                 
                 # 建立连接
-                if parsed_url.scheme == 'https':
-                    conn = http.client.HTTPSConnection(host, context=ssl_context, timeout=30)
-                else:
-                    conn = http.client.HTTPConnection(host, timeout=30)
-                
-                # 发送请求
-                conn.request(
-                    "POST", 
-                    path, 
-                    body=json_data, 
-                    headers=headers
-                )
-                
-                # 获取响应
-                http_response = conn.getresponse()
-                response_data = http_response.read().decode('utf-8')
-                
-                # 处理响应
-                if http_response.status == 200:
-                    response_json = json.loads(response_data)
-                    token_count = calculate_tokens(messages)
-                    response_time = (datetime.now() - start_time).total_seconds()
+                conn = None
+                try:
+                    # 检查URL是否为HTTPS
+                    is_https = parsed_url.scheme.lower() == 'https'
+                    port = 443 if is_https else 80
                     
-                    logger.info(f"API request[{request_id}] 低级HTTP客户端成功，总时间: {response_time}s")
+                    # 使用基本HTTP连接，但设置正确的端口
+                    logger.debug(f"API request[{request_id}] 使用HTTP连接到 {host}:{port}")
+                    conn = http.client.HTTPConnection(host, port, timeout=30)
                     
-                    return {
-                        'response': response_json,
-                        'response_time': response_time,
-                        'token_count': token_count
-                    }
-                else:
-                    logger.warning(f"API request[{request_id}] 低级HTTP客户端返回非200状态码: {http_response.status}")
+                    # 添加额外的请求头，以处理HTTPS请求
+                    if is_https:
+                        headers = dict(headers)  # 创建副本以避免修改原始字典
+                        headers['X-Forwarded-Proto'] = 'https'
+                    
+                    # 发送请求
+                    logger.debug(f"API request[{request_id}] 使用http.client发送请求")
+                    conn.request(
+                        "POST", 
+                        path, 
+                        body=json_data, 
+                        headers=headers
+                    )
+                    
+                    # 获取响应
+                    http_response = conn.getresponse()
+                    response_data = http_response.read().decode('utf-8')
+                    
+                    # 处理响应
+                    if http_response.status == 200:
+                        response_json = json.loads(response_data)
+                        token_count = calculate_tokens(messages)
+                        response_time = (datetime.now() - start_time).total_seconds()
+                        
+                        logger.info(f"API request[{request_id}] 低级HTTP客户端成功，总时间: {response_time}s")
+                        
+                        return {
+                            'response': response_json,
+                            'response_time': response_time,
+                            'token_count': token_count
+                        }
+                    else:
+                        logger.warning(f"API request[{request_id}] 低级HTTP客户端返回非200状态码: {http_response.status}")
+                        # 继续尝试使用requests库
+                except Exception as e:
+                    logger.error(f"API request[{request_id}] 连接错误: {str(e)}")
                     # 继续尝试使用requests库
-            except Exception as direct_error:
-                logger.warning(f"API request[{request_id}] 低级HTTP客户端失败: {str(direct_error)}")
+            except Exception as e:
+                logger.error(f"API request[{request_id}] 连接错误: {str(e)}")
                 # 继续尝试使用requests库
         
         # 创建带自定义SSL上下文的会话
@@ -613,16 +627,16 @@ def send_message(messages, api_key=None, enable_live_search=False):
                 # 处理成功响应
                 if response.status_code == 200:
                     response_json = response.json()
-                    token_count = calculate_tokens(messages)
-                    
+                token_count = calculate_tokens(messages)
+                
                     logger.info(f"API request[{request_id}] 成功，总时间: {response_time}s")
-                    
-                    return {
-                        'response': response_json,
-                        'response_time': response_time,
-                        'token_count': token_count
-                    }
-                    
+                
+                return {
+                    'response': response_json,
+                    'response_time': response_time,
+                    'token_count': token_count
+                }
+                
                 # 处理不同的状态码
                 elif response.status_code == 401:
                     return {'error': 'Invalid or expired API key, please update your API key'}
@@ -655,7 +669,7 @@ def send_message(messages, api_key=None, enable_live_search=False):
                 logger.warning(f"API request[{request_id}] 超时，重试 {retry_count}/{max_retries}")
                 if retry_count > max_retries:
                     logger.error(f"API request[{request_id}] 超时，达到最大重试次数")
-                    return {'error': 'API request timeout, please check your network connection'}
+                return {'error': 'API request timeout, please check your network connection'}
                 time.sleep(1)  # 短暂延迟后重试
                 
             except requests.exceptions.ConnectionError as e:
@@ -698,7 +712,7 @@ def send_message(messages, api_key=None, enable_live_search=False):
                 logger.warning(f"API request[{request_id}] 请求错误: {str(e)}，重试 {retry_count}/{max_retries}")
                 if retry_count > max_retries:
                     logger.error(f"API request[{request_id}] 请求错误，达到最大重试次数: {str(e)}")
-                    return {'error': f'API request error: {str(e)}'}
+                return {'error': f'API request error: {str(e)}'}
                 time.sleep(1)  # 短暂延迟后重试
                     
     except RecursionError as e:
@@ -734,11 +748,21 @@ def use_http_client_fallback(request_id, api_request_url, headers, data, message
         # 建立连接
         conn = None
         try:
-            # 使用基本HTTP连接而不是HTTPS，避免SSL上下文问题
-            logger.debug(f"API验证: 使用HTTP连接到 {host}")
-            conn = http.client.HTTPConnection(host, timeout=10)
+            # 检查URL是否为HTTPS
+            is_https = parsed_url.scheme.lower() == 'https'
+            port = 443 if is_https else 80
+            
+            # 使用基本HTTP连接，但设置正确的端口
+            logger.debug(f"API request[{request_id}] 使用HTTP连接到 {host}:{port}")
+            conn = http.client.HTTPConnection(host, port, timeout=30)
+            
+            # 添加额外的请求头，以处理HTTPS请求
+            if is_https:
+                headers = dict(headers)  # 创建副本以避免修改原始字典
+                headers['X-Forwarded-Proto'] = 'https'
             
             # 发送请求
+            logger.debug(f"API request[{request_id}] 使用http.client发送请求")
             conn.request(
                 "POST", 
                 path, 
@@ -748,25 +772,44 @@ def use_http_client_fallback(request_id, api_request_url, headers, data, message
             
             # 获取响应
             http_response = conn.getresponse()
+            response_data = http_response.read().decode('utf-8')
             
+            # 处理响应
             if http_response.status == 200:
-                return {'valid': True, 'message': 'API密钥验证成功 (通过后备方法)'}
+                try:
+                    response_json = json.loads(response_data)
+                    token_count = calculate_tokens(messages)
+                    response_time = (datetime.now() - start_time).total_seconds()
+                    
+                    logger.info(f"API request[{request_id}] 后备方案成功，总时间: {response_time}s")
+                    
+                    return {
+                        'response': response_json,
+                        'response_time': response_time,
+                        'token_count': token_count
+                    }
+                except json.JSONDecodeError as je:
+                    logger.error(f"API request[{request_id}] 无法解析JSON响应: {str(je)}")
+                    return {'error': 'Invalid JSON response from API server'}
             elif http_response.status == 401:
-                return {'valid': False, 'error': 'API密钥无效或已过期'}
+                return {'error': 'Invalid or expired API key, please update your API key'}
             elif http_response.status == 403:
-                return {'valid': False, 'error': 'API访问被拒绝，请检查密钥权限'}
+                return {'error': 'API access denied - please check your API key and permissions'}
+            elif http_response.status == 429:
+                return {'error': 'API request rate limit exceeded, please try again later'}
             else:
-                return {'valid': False, 'error': f'API请求失败: {http_response.status}'}
-        
+                logger.error(f"API request[{request_id}] 后备方案返回错误: {http_response.status}")
+                return {'error': f'API error: {http_response.status}'}
+                
         except http.client.HTTPException as he:
-            logger.error(f"API验证: HTTP客户端异常: {str(he)}")
-            return {'valid': False, 'error': f'HTTP连接错误: {str(he)}'}
+            logger.error(f"API request[{request_id}] HTTP客户端异常: {str(he)}")
+            return {'error': f'HTTP connection error: {str(he)}'}
         except socket.error as se:
-            logger.error(f"API验证: 套接字错误: {str(se)}")
-            return {'valid': False, 'error': f'网络连接错误: {str(se)}'}
+            logger.error(f"API request[{request_id}] 套接字错误: {str(se)}")
+            return {'error': f'Network connection error: {str(se)}'}
         except Exception as conn_error:
-            logger.error(f"API验证: 连接错误: {str(conn_error)}")
-            return {'valid': False, 'error': f'连接错误: {str(conn_error)}'}
+            logger.error(f"API request[{request_id}] 连接错误: {str(conn_error)}")
+            return {'error': f'Connection error: {str(conn_error)}'}
         finally:
             # 确保连接被关闭
             if conn:
@@ -776,10 +819,10 @@ def use_http_client_fallback(request_id, api_request_url, headers, data, message
                     pass
             
     except Exception as backup_error:
-        logger.error(f"API验证: 后备方案失败: {str(backup_error)}")
+        logger.error(f"API request[{request_id}] 后备方案失败: {str(backup_error)}")
         import traceback
-        logger.error(f"API验证: 错误详情: {traceback.format_exc()}")
-        return {'valid': False, 'error': 'SSL验证错误，无法连接到API服务器'}
+        logger.error(f"API request[{request_id}] 错误详情: {traceback.format_exc()}")
+        return {'error': 'SSL recursion error occurred. Fallback method also failed. Please try again later.'}
 
 @app.route('/')
 def index():
@@ -954,11 +997,21 @@ def validate_api_key():
                 # 建立连接
                 conn = None
                 try:
-                    # 使用基本HTTP连接而不是HTTPS，避免SSL上下文问题
-                    logger.debug(f"API验证: 使用HTTP连接到 {host}")
-                    conn = http.client.HTTPConnection(host, timeout=10)
+                    # 检查URL是否为HTTPS
+                    is_https = parsed_url.scheme.lower() == 'https'
+                    port = 443 if is_https else 80
+                    
+                    # 使用基本HTTP连接，但设置正确的端口
+                    logger.debug(f"API验证: 使用HTTP连接到 {host}:{port}")
+                    conn = http.client.HTTPConnection(host, port, timeout=10)
+                    
+                    # 添加额外的请求头，以处理HTTPS请求
+                    if is_https:
+                        headers = dict(headers)  # 创建副本以避免修改原始字典
+                        headers['X-Forwarded-Proto'] = 'https'
                     
                     # 发送请求
+                    logger.debug(f"API验证: 使用http.client发送请求")
                     conn.request(
                         "POST", 
                         path, 
@@ -1134,12 +1187,12 @@ def handle_message(data):
         # Send processing confirmation
         socketio.emit('message_received', {
             'status': 'processing',
-            'request_id': request_id
-        }, room=request.sid)
+                    'request_id': request_id
+                }, room=request.sid)
 
         # Build system message
         system_message = 'You are a helpful assistant.'
-        logger.debug(f'[ID:{request_id}] Using default system message')
+            logger.debug(f'[ID:{request_id}] Using default system message')
 
         # Build API request message list - Fix the logic here to ensure messages are added in the correct order
         messages = [{'role': 'system', 'content': system_message}]
@@ -1376,14 +1429,14 @@ if __name__ == '__main__':
     else:
         # For local development, start the app directly
         try:
-            socketio.run(
-                app, 
+    socketio.run(
+        app, 
                 host=host, 
-                port=port,
+        port=port,
                 debug=debug_mode,
                 use_reloader=False,  # Disable reloader for production
                 log_output=debug_mode  # Only log output in debug mode
-            )
+    )
         except Exception as e:
             logger.error(f"❌ Failed to start server: {str(e)}")
             import traceback
