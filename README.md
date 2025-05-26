@@ -1,198 +1,173 @@
-# 🚀 Grok-3-Fast with Live Search
+# 🚀 Grok 3.0 Chat Application
 
-A modern, responsive web interface for xAI's Grok-3-Fast model with integrated Live Search capabilities. Built with Flask, Socket.IO, and modern web technologies.
-
-## ✨ Features
-
-- **🤖 Grok-3-Fast Integration**: Direct access to xAI's latest Grok-3-Fast model
-- **🔍 Live Search**: Real-time information from X, web pages, news, and RSS sources
-- **📱 Responsive Design**: Perfect adaptation for mobile, tablet, and desktop
-- **💬 Real-time Chat**: WebSocket-based instant messaging
-- **📝 Markdown Support**: Full Markdown rendering with syntax highlighting
-- **🧮 Math Formulas**: LaTeX math formula support with MathJax
-- **💾 Conversation History**: Persistent chat history management
-- **🎨 Modern UI**: GitHub Dark theme with smooth animations
-- **⚡ Fast Deployment**: One-click deployment to Render
-- **🔒 Cloud-Ready**: Enhanced DNS resolution and SSL handling for cloud platforms
-
-## 🚀 Quick Deploy to Render
+一个基于 Flask 和 Socket.IO 的现代化实时聊天应用，集成了 xAI 的 Grok 3.0 API 和 Live Search 功能。
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
 
-1. Click the "Deploy to Render" button above
-2. Connect your GitHub account and fork this repository
-3. Set your xAI API key in the Render dashboard environment variables
-4. Deploy and enjoy!
+## ✨ 功能特点
 
-## 🛠️ Local Development
+- 🤖 **Grok 3.0 AI 对话** - 集成最新的 xAI Grok 3.0 API
+- 🔍 **Live Search 实时搜索** - 获取来自 X、网页、新闻和 RSS 源的最新信息
+- 💬 **实时聊天界面** - 基于 WebSocket 的流畅对话体验
+- 📱 **响应式设计** - 完美支持桌面端和移动端
+- 🗂️ **会话历史管理** - 自动保存和管理对话历史
+- 🔄 **自动重连机制** - 网络断开时自动重新连接
+- 🎨 **现代化 UI** - 深色主题，优雅的用户界面
+- ☁️ **云端部署优化** - 针对 Render、Heroku 等云平台优化
 
-### Prerequisites
+## 🔍 xAI Live Search 功能
 
-- Python 3.8+
-- xAI API Key (get one from [xAI Console](https://console.x.ai))
+本应用集成了 xAI 的 Live Search API，提供以下特性：
 
-### Installation
+- **🧠 自动搜索决策** - Grok 根据对话上下文自动判断是否需要进行实时搜索
+- **🌐 多样化数据源** - 支持从 X 平台、网页、新闻和 RSS 源获取信息
+- **⚡ 实时信息** - 获取最新的24小时内的信息
+- **🔗 智能集成** - 搜索结果自动整合到对话回复中
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/ink1ing/groklocalweb.git
-   cd groklocalweb
-   ```
+> **注意**: Live Search 功能目前处于免费公开测试阶段（截止到2025年6月5日）
 
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+## 🚀 快速开始
 
-3. **Set environment variables**
-   ```bash
-   cp env.example .env
-   # Edit .env and add your xAI API key
-   ```
+### 本地开发
 
-4. **Run the application**
-   ```bash
-   ./start.sh
-   # Or manually:
-   MODEL_NAME=grok-3-fast-latest python chat.py
-   ```
-
-5. **Open your browser**
-   ```
-   http://localhost:10000
-   ```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MODEL_NAME` | `grok-3-fast-latest` | xAI model to use |
-| `API_URL` | `https://api.x.ai/v1/chat/completions` | xAI API endpoint |
-| `API_IP` | `146.75.33.95` | Backup IP address for API (for DNS issues) |
-| `TEMPERATURE` | `0` | Model temperature (0-1) |
-| `PORT` | `10000` | Server port |
-| `HOST` | `0.0.0.0` | Server host |
-| `DEBUG` | `false` | Debug mode |
-| `RENDER` | `false` | Set to `true` when running on Render platform |
-| `DNS_SERVERS` | `8.8.8.8,1.1.1.1` | Custom DNS servers for resolution |
-
-### Supported Models
-
-- `grok-3-fast-latest` (Recommended)
-- `grok-3-beta`
-- `grok-3-fast`
-
-## 📱 Features Overview
-
-### Live Search Integration
-- **Real-time Information**: Get the latest data from multiple sources
-- **Smart Search**: Automatic search decision based on query context
-- **Multiple Sources**: X (Twitter), web pages, news, RSS feeds
-- **Accurate Results**: Enhanced response accuracy with current information
-
-### Cloud-Ready Enhancements
-- **Robust DNS Resolution**: Custom DNS resolvers to avoid lookup failures
-- **IP Direct Connect**: Automatically uses IP direct connection when DNS fails
-- **SSL Recursion Fix**: Prevents Python SSL recursion errors in cloud environments
-- **Multi-level Fallbacks**: HTTP client fallbacks ensure reliable API connection
-- **Detailed Diagnostics**: Enhanced logging for troubleshooting
-
-### Modern Interface
-- **Responsive Design**: Works perfectly on all devices
-- **Dark Theme**: Easy on the eyes with GitHub Dark styling
-- **Smooth Animations**: Fluid transitions and interactions
-- **Touch Optimized**: Mobile-friendly touch interactions
-
-### Advanced Features
-- **Markdown Rendering**: Full support for Markdown syntax
-- **Code Highlighting**: Syntax highlighting for 100+ languages
-- **Math Formulas**: LaTeX math rendering with MathJax
-- **Conversation Management**: Save, load, and delete conversations
-- **Real-time Updates**: WebSocket-based instant messaging
-
-## 🌐 Deployment Options
-
-### Render (Recommended)
-- One-click deployment with `render.yaml`
-- Automatic builds and deployments
-- Free tier available
-- Custom domain support
-- Enhanced DNS and SSL handling for Render environment
-
-### Heroku
+1. **克隆仓库**
 ```bash
-# Create Heroku app
+git clone https://github.com/your-username/grok3.0-api.git
+cd grok3.0-api
+```
+
+2. **安装依赖**
+```bash
+pip install -r requirements.txt
+```
+
+3. **配置环境变量**
+```bash
+cp env.example .env
+# 编辑 .env 文件，添加您的配置
+```
+
+4. **启动应用**
+```bash
+python chat.py
+```
+
+5. **访问应用**
+打开浏览器访问 `http://localhost:10000`
+
+### 🌐 云端部署
+
+#### Render 部署
+
+1. Fork 这个仓库到您的 GitHub 账户
+2. 在 [Render](https://render.com) 创建新的 Web Service
+3. 连接您的 GitHub 仓库
+4. 配置环境变量（见下方配置说明）
+5. 点击部署
+
+#### Heroku 部署
+
+```bash
+# 安装 Heroku CLI 后执行
 heroku create your-app-name
-
-# Set environment variables
+heroku config:set API_URL=https://api.x.ai/v1/chat/completions
 heroku config:set MODEL_NAME=grok-3-fast-latest
-
-# Deploy
+heroku config:set SECRET_KEY=your-secret-key
 git push heroku main
 ```
 
-### Docker
-```bash
-# Build image
-docker build -t grok3-fast .
+## ⚙️ 环境变量配置
 
-# Run container
-docker run -p 10000:10000 -e MODEL_NAME=grok-3-fast-latest grok3-fast
+| 变量名 | 描述 | 默认值 | 必需 |
+|--------|------|--------|------|
+| `API_URL` | xAI API 端点 | `https://api.x.ai/v1/chat/completions` | ✅ |
+| `MODEL_NAME` | 使用的模型名称 | `grok-3-fast-latest` | ✅ |
+| `TEMPERATURE` | 模型温度参数 | `0` | ❌ |
+| `SECRET_KEY` | Flask 密钥 | 随机生成 | ✅ |
+| `DEBUG` | 调试模式 | `False` | ❌ |
+| `PORT` | 服务器端口 | `10000` | ❌ |
+| `HOST` | 服务器主机 | `0.0.0.0` | ❌ |
+
+## 🔑 获取 xAI API 密钥
+
+1. 访问 [xAI 控制台](https://console.x.ai)
+2. 创建新的 API 密钥
+3. 在应用设置中输入您的 API 密钥
+4. 开启 Live Search 功能（可选）
+
+## 📱 使用说明
+
+1. **设置 API 密钥** - 点击设置按钮，输入您的 xAI API 密钥
+2. **开启 Live Search** - 在设置中启用实时搜索功能
+3. **开始对话** - 在输入框中输入消息，按回车发送
+4. **管理会话** - 在左侧边栏查看和管理对话历史
+5. **新建对话** - 点击"Start a New Talk"开始新的对话
+
+## 🛠️ 技术栈
+
+- **后端**: Flask, Socket.IO, Python
+- **前端**: HTML5, CSS3, JavaScript (ES6+)
+- **API**: xAI Grok 3.0 API with Live Search
+- **部署**: Gunicorn, Eventlet
+- **云平台**: Render, Heroku, Railway 等
+
+## 📊 API 端点
+
+- `GET /` - 主页面
+- `GET /health` - 健康检查端点
+- `GET /api/status` - 应用状态信息
+- `WebSocket /socket.io` - 实时通信
+
+## 🔧 开发
+
+### 项目结构
+
+```
+grok3.0-api/
+├── chat.py              # 主应用文件
+├── templates/
+│   └── index.html       # 前端模板
+├── requirements.txt     # Python 依赖
+├── Procfile            # 部署配置
+├── env.example         # 环境变量示例
+├── test_live_search.py # 测试脚本
+└── README.md           # 项目文档
 ```
 
-## 🔒 Security
+### 运行测试
 
-- **API Key Protection**: Client-side storage, never sent to server logs
-- **Input Validation**: Comprehensive input sanitization
-- **Rate Limiting**: Built-in request throttling
-- **SSL/TLS**: HTTPS enforcement in production
-- **XSS Protection**: Content Security Policy headers
+```bash
+python test_live_search.py
+```
 
-## 🛠️ Troubleshooting
+## 🤝 贡献
 
-### SSL Issues
-If you encounter SSL recursion errors, check the `SSL_FIX.md` document for details on the implemented solution. The app includes several layers of SSL error handling to ensure reliable operation in cloud environments.
+欢迎提交 Issue 和 Pull Request！
 
-### DNS Resolution Problems
-For DNS resolution issues, see `RENDER_FIXES.md` for the implemented fixes. The application can automatically switch to IP direct connection when DNS resolution fails.
+1. Fork 项目
+2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
 
-### Testing Tools
-- Run `python test_ssl_fix.py` to verify SSL fixes
-- Visit `/socket-test` endpoint to test WebSocket connectivity
-- Check `/health` endpoint for application status
-- Use `/api/status` to verify API configuration
+## 📄 许可证
 
-## 🤝 Contributing
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+## 🙏 致谢
 
-## 📄 License
+- [xAI](https://x.ai) - 提供强大的 Grok 3.0 API 和 Live Search 功能
+- [Flask](https://flask.palletsprojects.com/) - 优秀的 Python Web 框架
+- [Socket.IO](https://socket.io/) - 实时通信解决方案
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## 📞 支持
 
-## 🙏 Acknowledgments
+如果您遇到问题或有任何建议，请：
 
-- [xAI](https://x.ai) for the Grok API
-- [Flask](https://flask.palletsprojects.com/) for the web framework
-- [Socket.IO](https://socket.io/) for real-time communication
-- [Marked.js](https://marked.js.org/) for Markdown rendering
-- [Highlight.js](https://highlightjs.org/) for syntax highlighting
-- [MathJax](https://www.mathjax.org/) for math formula rendering
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/ink1ing/groklocalweb/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/ink1ing/groklocalweb/discussions)
-- **Documentation**: [Wiki](https://github.com/ink1ing/groklocalweb/wiki)
+1. 查看 [Issues](https://github.com/your-username/grok3.0-api/issues)
+2. 创建新的 Issue
+3. 联系开发者
 
 ---
 
-**Made with ❤️ by the Grok Community**
-
-⭐ Star this repository if you find it helpful!
+**Built with ❤️ by Ink 🧑🏻‍💻**

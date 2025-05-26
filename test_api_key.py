@@ -4,19 +4,11 @@
 """
 import requests
 import json
-import sys
-import re
 
 def test_api_key(api_key):
     """测试API密钥是否有效"""
     
-    # 只显示密钥的一部分，保护隐私
-    if len(api_key) > 20:
-        masked_key = f"{api_key[:10]}...{api_key[-4:]}"
-    else:
-        masked_key = "[密钥格式不正确]"
-        
-    print(f"🔑 测试API密钥: {masked_key}")
+    print(f"🔑 测试API密钥: {api_key[:10]}...{api_key[-10:]}")
     
     # 构建请求
     url = "https://api.x.ai/v1/chat/completions"
@@ -64,24 +56,20 @@ def test_api_key(api_key):
         return False
 
 if __name__ == "__main__":
+    # 您提供的API密钥
+    api_key = "xai-VT2kiahrHp06P6HXSECndDVKZIeIQmkmi44LONOsZuun7ENEeqnSSB9G3fJnGoweJ2izUSONx7t8sXCE"
+    
     print("🚀 xAI API密钥测试工具")
     print("=" * 50)
     
-    # 从命令行获取API密钥或要求用户输入
-    if len(sys.argv) > 1:
-        api_key = sys.argv[1]
-    else:
-        api_key = input("请输入您的xAI API密钥: ")
-    
     # 验证密钥格式
+    import re
     if re.match(r'^xai-[A-Za-z0-9]{50,}$', api_key):
         print("✅ API密钥格式正确")
     else:
         print("❌ API密钥格式不正确")
         print(f"📏 密钥长度: {len(api_key)}")
-        print(f"🔍 密钥格式: {api_key[:5]}...")
-        print("正确格式应为: xai-后跟50个以上字母数字字符")
-        sys.exit(1)
+        print(f"🔍 密钥格式: {api_key[:20]}...")
     
     print()
     

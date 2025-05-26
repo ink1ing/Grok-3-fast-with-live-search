@@ -1,55 +1,19 @@
 services:
   - type: web
-    name: grok3-fast-live-search
+    name: grok3-chat
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -k eventlet -w 1 --timeout 120 --worker-connections=1000 chat:app
+    startCommand: gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT --timeout 120 --keep-alive 2 --max-requests 1000 --max-requests-jitter 50 chat:app
     envVars:
       - key: API_URL
         value: https://api.x.ai/v1/chat/completions
-      - key: API_IP
-        value: "146.75.33.95"
       - key: MODEL_NAME
         value: grok-3-fast-latest
       - key: TEMPERATURE
         value: "0"
+      - key: DEBUG
+        value: "False"
       - key: SECRET_KEY
         generateValue: true
-      - key: DEBUG
-        value: "false"
-      - key: PYTHONUNBUFFERED
-        value: "1"
-      - key: PYTHONDONTWRITEBYTECODE
-        value: "1"
-      - key: WEB_CONCURRENCY
-        value: "1"
-      - key: RENDER
-        value: "true"
-      - key: EVENTLET_NO_GREENDNS
-        value: "yes"
-      - key: DNS_SERVERS
-        value: "8.8.8.8,8.8.4.4,1.1.1.1"
-      - key: USE_LOW_LEVEL_HTTP
-        value: "true"
-      - key: PYTHONPATH
-        value: "/opt/render/project/src"
-    healthCheckPath: /health
-    autoDeploy: true
-    disk:
-      name: grok3-disk
-      mountPath: /opt/render/project/src
-      sizeGB: 1
-    scaling:
-      minInstances: 1
-      maxInstances: 1
-    region: oregon
-    buildFilter:
-      paths:
-        - "**"
-      ignoredPaths:
-        - "*.md"
-        - ".git/**"
-        - ".gitignore"
-        - "test_*.py"
-        - "deploy_check.sh" 
+    healthCheckPath: /health 
