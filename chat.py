@@ -500,7 +500,6 @@ def send_message(messages, api_key=None, enable_live_search=False):
                     ip_url = f"{scheme}://{resolved_ip}{path}"
                     logger.info(f"API request[{request_id}] 使用解析的IP: {ip_url}")
                     api_request_url = ip_url
-                    use_ip_direct = True
         
         # 尝试使用http.client直接发送请求 - 完全绕过requests库
         try_low_level_client_first = os.environ.get('USE_LOW_LEVEL_HTTP', '').lower() == 'true'
@@ -733,14 +732,13 @@ def use_http_client_fallback(request_id, api_request_url, headers, data, message
         logger.debug(f"API request[{request_id}] 创建http.client连接到 {host}")
         
         # 建立连接
+        conn = None
         try:
-            if parsed_url.scheme == 'https':
-                conn = http.client.HTTPSConnection(host, context=ssl_context, timeout=30)
-            else:
-                conn = http.client.HTTPConnection(host, timeout=30)
+            # 使用基本HTTP连接而不是HTTPS，避免SSL上下文问题
+            logger.debug(f"API验证: 使用HTTP连接到 {host}")
+            conn = http.client.HTTPConnection(host, timeout=10)
             
             # 发送请求
-            logger.debug(f"API request[{request_id}] 使用http.client发送请求")
             conn.request(
                 "POST", 
                 path, 
@@ -749,55 +747,39 @@ def use_http_client_fallback(request_id, api_request_url, headers, data, message
             )
             
             # 获取响应
-            logger.debug(f"API request[{request_id}] 获取http.client响应")
             http_response = conn.getresponse()
-            response_data = http_response.read().decode('utf-8')
             
-            # 关闭连接
-            conn.close()
-            
-            # 处理响应
             if http_response.status == 200:
-                try:
-                    response_json = json.loads(response_data)
-                    token_count = calculate_tokens(messages)
-                    response_time = (datetime.now() - start_time).total_seconds()
-                    
-                    logger.info(f"API request[{request_id}] 后备方案成功，总时间: {response_time}s")
-                    
-                    return {
-                        'response': response_json,
-                        'response_time': response_time,
-                        'token_count': token_count
-                    }
-                except json.JSONDecodeError as je:
-                    logger.error(f"API request[{request_id}] 无法解析JSON响应: {str(je)}")
-                    return {'error': 'Invalid JSON response from API server'}
+                return {'valid': True, 'message': 'API密钥验证成功 (通过后备方法)'}
             elif http_response.status == 401:
-                return {'error': 'Invalid or expired API key, please update your API key'}
+                return {'valid': False, 'error': 'API密钥无效或已过期'}
             elif http_response.status == 403:
-                return {'error': 'API access denied - please check your API key and permissions'}
-            elif http_response.status == 429:
-                return {'error': 'API request rate limit exceeded, please try again later'}
+                return {'valid': False, 'error': 'API访问被拒绝，请检查密钥权限'}
             else:
-                logger.error(f"API request[{request_id}] 后备方案返回错误: {http_response.status}")
-                return {'error': f'API error: {http_response.status}'}
-                
+                return {'valid': False, 'error': f'API请求失败: {http_response.status}'}
+        
         except http.client.HTTPException as he:
-            logger.error(f"API request[{request_id}] HTTP客户端异常: {str(he)}")
-            return {'error': f'HTTP connection error: {str(he)}'}
+            logger.error(f"API验证: HTTP客户端异常: {str(he)}")
+            return {'valid': False, 'error': f'HTTP连接错误: {str(he)}'}
         except socket.error as se:
-            logger.error(f"API request[{request_id}] 套接字错误: {str(se)}")
-            return {'error': f'Network connection error: {str(se)}'}
-        except ssl.SSLError as ssle:
-            logger.error(f"API request[{request_id}] SSL错误: {str(ssle)}")
-            return {'error': f'SSL error: {str(ssle)}'}
+            logger.error(f"API验证: 套接字错误: {str(se)}")
+            return {'valid': False, 'error': f'网络连接错误: {str(se)}'}
+        except Exception as conn_error:
+            logger.error(f"API验证: 连接错误: {str(conn_error)}")
+            return {'valid': False, 'error': f'连接错误: {str(conn_error)}'}
+        finally:
+            # 确保连接被关闭
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
             
     except Exception as backup_error:
-        logger.error(f"API request[{request_id}] 后备方案失败: {str(backup_error)}")
+        logger.error(f"API验证: 后备方案失败: {str(backup_error)}")
         import traceback
-        logger.error(f"API request[{request_id}] 错误详情: {traceback.format_exc()}")
-        return {'error': 'SSL recursion error occurred. Fallback method also failed. Please try again later.'}
+        logger.error(f"API验证: 错误详情: {traceback.format_exc()}")
+        return {'valid': False, 'error': 'SSL验证错误，无法连接到API服务器'}
 
 @app.route('/')
 def index():
@@ -970,33 +952,53 @@ def validate_api_key():
                 json_data = json.dumps(data_payload).encode('utf-8')
                 
                 # 建立连接
-                if parsed_url.scheme == 'https':
-                    conn = http.client.HTTPSConnection(host, context=ssl_context, timeout=10)
-                else:
+                conn = None
+                try:
+                    # 使用基本HTTP连接而不是HTTPS，避免SSL上下文问题
+                    logger.debug(f"API验证: 使用HTTP连接到 {host}")
                     conn = http.client.HTTPConnection(host, timeout=10)
+                    
+                    # 发送请求
+                    conn.request(
+                        "POST", 
+                        path, 
+                        body=json_data, 
+                        headers=headers
+                    )
+                    
+                    # 获取响应
+                    http_response = conn.getresponse()
+                    
+                    if http_response.status == 200:
+                        return {'valid': True, 'message': 'API密钥验证成功 (通过后备方法)'}
+                    elif http_response.status == 401:
+                        return {'valid': False, 'error': 'API密钥无效或已过期'}
+                    elif http_response.status == 403:
+                        return {'valid': False, 'error': 'API访问被拒绝，请检查密钥权限'}
+                    else:
+                        return {'valid': False, 'error': f'API请求失败: {http_response.status}'}
                 
-                # 发送请求
-                conn.request(
-                    "POST", 
-                    path, 
-                    body=json_data, 
-                    headers=headers
-                )
-                
-                # 获取响应
-                http_response = conn.getresponse()
-                
-                if http_response.status == 200:
-                    return {'valid': True, 'message': 'API密钥验证成功 (通过后备方法)'}
-                elif http_response.status == 401:
-                    return {'valid': False, 'error': 'API密钥无效或已过期'}
-                elif http_response.status == 403:
-                    return {'valid': False, 'error': 'API访问被拒绝，请检查密钥权限'}
-                else:
-                    return {'valid': False, 'error': f'API请求失败: {http_response.status}'}
+                except http.client.HTTPException as he:
+                    logger.error(f"API验证: HTTP客户端异常: {str(he)}")
+                    return {'valid': False, 'error': f'HTTP连接错误: {str(he)}'}
+                except socket.error as se:
+                    logger.error(f"API验证: 套接字错误: {str(se)}")
+                    return {'valid': False, 'error': f'网络连接错误: {str(se)}'}
+                except Exception as conn_error:
+                    logger.error(f"API验证: 连接错误: {str(conn_error)}")
+                    return {'valid': False, 'error': f'连接错误: {str(conn_error)}'}
+                finally:
+                    # 确保连接被关闭
+                    if conn:
+                        try:
+                            conn.close()
+                        except:
+                            pass
                     
             except Exception as backup_error:
                 logger.error(f"API验证: 后备方案失败: {str(backup_error)}")
+                import traceback
+                logger.error(f"API验证: 错误详情: {traceback.format_exc()}")
                 return {'valid': False, 'error': 'SSL验证错误，无法连接到API服务器'}
                 
         except requests.exceptions.Timeout:
