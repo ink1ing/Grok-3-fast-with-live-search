@@ -627,16 +627,14 @@ def send_message(messages, api_key=None, enable_live_search=False):
                 # 处理成功响应
                 if response.status_code == 200:
                     response_json = response.json()
-                token_count = calculate_tokens(messages)
-                
+                    token_count = calculate_tokens(messages)
                     logger.info(f"API request[{request_id}] 成功，总时间: {response_time}s")
-                
-                return {
-                    'response': response_json,
-                    'response_time': response_time,
-                    'token_count': token_count
-                }
-                
+                    
+                    return {
+                        'response': response_json,
+                        'response_time': response_time,
+                        'token_count': token_count
+                    }
                 # 处理不同的状态码
                 elif response.status_code == 401:
                     return {'error': 'Invalid or expired API key, please update your API key'}
@@ -1192,7 +1190,7 @@ def handle_message(data):
 
         # Build system message
         system_message = 'You are a helpful assistant.'
-            logger.debug(f'[ID:{request_id}] Using default system message')
+        logger.debug(f'[ID:{request_id}] Using default system message')
 
         # Build API request message list - Fix the logic here to ensure messages are added in the correct order
         messages = [{'role': 'system', 'content': system_message}]
@@ -1429,14 +1427,14 @@ if __name__ == '__main__':
     else:
         # For local development, start the app directly
         try:
-    socketio.run(
-        app, 
+            socketio.run(
+                app, 
                 host=host, 
-        port=port,
+                port=port,
                 debug=debug_mode,
                 use_reloader=False,  # Disable reloader for production
                 log_output=debug_mode  # Only log output in debug mode
-    )
+            )
         except Exception as e:
             logger.error(f"❌ Failed to start server: {str(e)}")
             import traceback
