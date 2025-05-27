@@ -392,14 +392,14 @@ def send_message(messages, api_key=None, enable_live_search=False):
                 }
                 
             elif response.status_code == 401:
-                    return {'error': 'Invalid or expired API key, please update your API key'}
+                return {'error': 'Invalid or expired API key, please update your API key'}
             elif response.status_code == 429:
-                    return {'error': 'API request rate limit exceeded, please try again later'}
+                return {'error': 'API request rate limit exceeded, please try again later'}
             elif response.status_code == 500:
-                    return {'error': 'API server error, please try again later'}
+                return {'error': 'API server error, please try again later'}
             elif response.status_code == 503:
-                    return {'error': 'API service temporarily unavailable, please try again later'}
-                else:
+                return {'error': 'API service temporarily unavailable, please try again later'}
+            else:
                 try:
                     error_data = response.json()
                     error_msg = error_data.get('error', {}).get('message', f'API error: {response.status_code}')
@@ -448,7 +448,7 @@ def health_check():
 @app.route('/api/status')
 def api_status():
     """API状态信息端点"""
-                return {
+    return {
         'api_url': API_URL,
         'model': os.getenv('MODEL_NAME', 'grok-3-fast-latest'),
         'max_conversations': session_manager.max_conversations,
@@ -501,7 +501,7 @@ def validate_api_key():
                 try:
                     error_data = response.json()
                     error_msg = error_data.get('error', {}).get('message', f'API请求失败: {response.status_code}')
-                    except:
+                except:
                     error_msg = f'API请求失败: {response.status_code}'
                 return {'valid': False, 'error': error_msg}
                 
@@ -509,7 +509,7 @@ def validate_api_key():
             return {'valid': False, 'error': '请求超时，请检查网络连接'}
         except requests.exceptions.ConnectionError:
             return {'valid': False, 'error': '网络连接失败，请检查网络设置'}
-    except Exception as e:
+        except Exception as e:
             return {'valid': False, 'error': f'请求错误: {str(e)}'}
             
     except Exception as e:
@@ -638,12 +638,12 @@ def handle_message(data):
         # Send processing confirmation
         socketio.emit('message_received', {
             'status': 'processing',
-                    'request_id': request_id
-                }, room=request.sid)
+            'request_id': request_id
+        }, room=request.sid)
 
         # Build system message
         system_message = 'You are a helpful assistant.'
-            logger.debug(f'[ID:{request_id}] Using default system message')
+        logger.debug(f'[ID:{request_id}] Using default system message')
 
         # Build API request message list - Fix the logic here to ensure messages are added in the correct order
         messages = [{'role': 'system', 'content': system_message}]
