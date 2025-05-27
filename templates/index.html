@@ -4,11 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Grok 3.0 Chat</title>
-    <!-- 添加Markdown库 -->
+    <!-- 添加Markdown解析库和代码高亮库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.1/dist/purify.min.js"></script>
-    <!-- 添加Highlight.js用于代码高亮 -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/styles/github-dark.min.css">
     <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/highlight.min.js"></script>
     <style>
         :root {
@@ -19,8 +17,6 @@
             --hover-color: rgba(255, 255, 255, 0.05);
             --success-color: rgba(34, 197, 94, 0.9);
             --error-color: rgba(220, 38, 38, 0.9);
-            --code-bg: #282c34;
-            --link-color: #3b82f6;
         }
         
         /* Notification styles */
@@ -525,98 +521,56 @@
             font-style: italic;
         }
         /* Responsive layout styles */
-        @media screen and (max-width: 768px) {
+        @media (max-width: 767px) {
             #history-sidebar {
                 transform: translateX(-100%);
-                transition: transform 0.3s ease;
-                width: 80% !important;
+                width: 80%;
                 max-width: 300px;
             }
             
-            #main-content {
-                margin-left: 0 !important;
-                width: 100% !important;
+            #chat-container {
+                margin-left: 0;
+                padding: 10px;
+                width: 100%;
             }
             
-            #input-container {
-                width: 100% !important;
-                margin-left: 0 !important;
-                padding: 15px !important;
-                box-sizing: border-box;
+            #conversation {
+                padding-bottom: 140px;
+            }
+            
+            #chat-input {
                 position: fixed;
                 bottom: 0;
                 left: 0;
-                right: 0;
+                width: 100%;
+                padding: 10px;
+                background: rgba(0, 0, 0, 0.8);
+                backdrop-filter: blur(10px);
+                border-top: 1px solid var(--border-color);
+            }
+            
+            .chat-bubble {
+                max-width: 85%;
             }
             
             #sidebar-toggle {
-                display: block !important;
+                display: block;
+            }
+
+            .btn-new {
+                font-size: 14px;
+                padding: 8px 12px;
             }
             
-            .message {
-                max-width: 90% !important;
+            .btn-clear, .btn-search {
+                font-size: 12px;
+                padding: 6px 10px;
             }
             
-            body.sidebar-visible #history-sidebar {
-                transform: translateX(0);
+            .modal-content {
+                width: 90%;
+                max-width: 350px;
             }
-            
-            #chat-container {
-                margin: 0 !important;
-                padding: 15px !important;
-                padding-bottom: 80px !important;
-                height: calc(100vh - 70px) !important;
-            }
-            
-            .title {
-                left: 50% !important;
-                font-size: 32px !important;
-            }
-        }
-        
-        /* 添加中等屏幕尺寸的响应式设计 */
-        @media screen and (min-width: 769px) and (max-width: 1024px) {
-            #history-sidebar {
-                width: 220px;
-            }
-            
-            #main-content {
-                margin-left: 220px;
-                width: calc(100% - 220px);
-            }
-            
-            #input-container {
-                width: calc(100% - 220px);
-                margin-left: 220px;
-            }
-            
-            .message {
-                max-width: 75%;
-            }
-        }
-        
-        /* 确保按钮和输入框在各种屏幕尺寸下都能正确显示 */
-        #input-container {
-            box-sizing: border-box;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        #input-container button {
-            white-space: nowrap;
-            min-width: 80px;
-        }
-        
-        body.sidebar-visible:before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 150;
         }
         
         /* Sidebar visible styles */
@@ -639,142 +593,184 @@
             z-index: 100;
         }
         
-        /* Markdown内容样式 */
+        /* Markdown渲染样式 */
         .markdown-content {
-            width: 100%;
-            overflow-wrap: break-word;
-            word-wrap: break-word;
-            word-break: break-word;
+            line-height: 1.6;
         }
-        
-        .markdown-content h1, 
-        .markdown-content h2, 
-        .markdown-content h3, 
-        .markdown-content h4, 
-        .markdown-content h5, 
+        .markdown-content h1,
+        .markdown-content h2,
+        .markdown-content h3,
+        .markdown-content h4,
+        .markdown-content h5,
         .markdown-content h6 {
-            margin-top: 24px;
-            margin-bottom: 16px;
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
             font-weight: 600;
-            line-height: 1.25;
+            color: #ffffff;
         }
-        
         .markdown-content h1 {
-            font-size: 2em;
-            padding-bottom: 0.3em;
+            font-size: 1.8em;
             border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.3em;
         }
-        
         .markdown-content h2 {
             font-size: 1.5em;
-            padding-bottom: 0.3em;
             border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.3em;
         }
-        
         .markdown-content h3 {
-            font-size: 1.25em;
+            font-size: 1.3em;
         }
-        
         .markdown-content h4 {
-            font-size: 1em;
+            font-size: 1.1em;
         }
-        
-        .markdown-content p, 
-        .markdown-content blockquote, 
-        .markdown-content ul, 
-        .markdown-content ol, 
-        .markdown-content dl, 
-        .markdown-content table, 
-        .markdown-content pre {
-            margin-top: 0;
-            margin-bottom: 16px;
+        .markdown-content p {
+            margin: 1em 0;
         }
-        
-        .markdown-content a {
-            color: var(--link-color);
-            text-decoration: none;
+        .markdown-content strong {
+            font-weight: 600;
         }
-        
-        .markdown-content a:hover {
-            text-decoration: underline;
+        .markdown-content em {
+            font-style: italic;
         }
-        
         .markdown-content blockquote {
-            padding: 0 1em;
-            color: #f0f0f0;
-            border-left: 0.25em solid var(--border-color);
+            border-left: 4px solid rgba(29, 78, 216, 0.8);
+            padding-left: 1em;
+            margin-left: 0;
+            color: rgba(255, 255, 255, 0.7);
+            background-color: rgba(255, 255, 255, 0.05);
+            padding: 0.5em 1em;
+            border-radius: 0 4px 4px 0;
         }
-        
+        .markdown-content code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        .markdown-content pre {
+            background-color: rgba(0, 0, 0, 0.3);
+            padding: 1em;
+            border-radius: 8px;
+            overflow: auto;
+            margin: 1em 0;
+        }
+        .markdown-content pre code {
+            background-color: transparent;
+            padding: 0;
+            font-size: 0.9em;
+            white-space: pre;
+            word-break: normal;
+            overflow-wrap: normal;
+        }
         .markdown-content ul, 
         .markdown-content ol {
             padding-left: 2em;
+            margin: 1em 0;
         }
-        
-        .markdown-content pre {
-            background-color: var(--code-bg);
-            border-radius: 6px;
-            padding: 16px;
-            overflow: auto;
-            font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
-            font-size: 85%;
-            line-height: 1.45;
-            max-width: 100%;
-            white-space: pre;
-            word-wrap: normal;
+        .markdown-content li {
+            margin: 0.5em 0;
         }
-        
-        .markdown-content pre code {
-            padding: 0;
-            background-color: transparent;
-            border-radius: 0;
-            white-space: pre;
-            word-break: normal;
-            overflow-x: auto;
-        }
-        
-        .markdown-content code {
-            font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
-            font-size: 85%;
-            padding: 0.2em 0.4em;
-            margin: 0;
-            background-color: var(--code-bg);
-            border-radius: 3px;
-        }
-        
         .markdown-content table {
             border-collapse: collapse;
             width: 100%;
-            display: block;
-            overflow-x: auto;
+            margin: 1em 0;
         }
-        
-        .markdown-content table th, 
+        .markdown-content table th,
         .markdown-content table td {
-            padding: 6px 13px;
             border: 1px solid var(--border-color);
+            padding: 0.5em;
+            text-align: left;
         }
-        
-        .markdown-content table tr {
-            background-color: transparent;
-            border-top: 1px solid var(--border-color);
-        }
-        
         .markdown-content table th {
+            background-color: rgba(255, 255, 255, 0.05);
             font-weight: 600;
         }
-        
+        .markdown-content a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+        .markdown-content a:hover {
+            text-decoration: underline;
+        }
         .markdown-content img {
             max-width: 100%;
-            height: auto;
-            display: block;
-            margin: 0 auto;
+            border-radius: 8px;
+        }
+        .markdown-content hr {
+            border: none;
+            border-top: 1px solid var(--border-color);
+            margin: 1.5em 0;
         }
         
-        /* 移动设备上的代码块样式 */
-        @media screen and (max-width: 768px) {
-            .markdown-content pre {
-                max-width: 100%;
-                font-size: 12px;
+        /* 响应式布局优化 */
+        @media (max-width: 768px) {
+            body {
+                overflow-x: hidden;
+            }
+            
+            #history-sidebar {
+                transform: translateX(-100%);
+                width: 80%;
+                max-width: 300px;
+                z-index: 500;
+            }
+            
+            body.sidebar-visible #history-sidebar {
+                transform: translateX(0);
+                box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            }
+            
+            #sidebar-toggle {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            #main-content {
+                margin-left: 0;
+                width: 100%;
+            }
+            
+            #input-container {
+                width: 100%;
+                box-sizing: border-box;
+                padding: 15px;
+                left: 0;
+                right: 0;
+            }
+            
+            .title {
+                left: 50%;
+                font-size: 36px;
+            }
+            
+            .message {
+                max-width: 85%;
+            }
+        }
+
+        /* 平板响应式布局优化 */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            #history-sidebar {
+                width: 220px;
+            }
+            
+            #main-content {
+                margin-left: 220px;
+                width: calc(100% - 220px);
+            }
+            
+            #input-container {
+                width: calc(100% - 300px);
+            }
+        }
+
+        /* 大屏幕响应式优化 */
+        @media (min-width: 1600px) {
+            .message {
+                max-width: 50%;
             }
         }
     </style>
@@ -1061,22 +1057,6 @@
         // 设置按钮点击事件
         document.getElementById('settings-btn').addEventListener('click', openSettingsModal);
 
-        // 配置Marked.js选项
-        marked.setOptions({
-            renderer: new marked.Renderer(),
-            highlight: function(code, lang) {
-                const language = hljs.getLanguage(lang) ? lang : 'plaintext';
-                return hljs.highlight(code, { language }).value;
-            },
-            langPrefix: 'hljs language-',
-            pedantic: false,
-            gfm: true,
-            breaks: true,
-            sanitize: false,
-            smartypants: false,
-            xhtml: false
-        });
-
         // 发送API密钥到服务器
         if (apiKey) {
             socket.emit('update_settings', { api_key: apiKey });
@@ -1086,21 +1066,102 @@
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${isUser ? 'user-message' : 'assistant-message'}`;
             
-            // 用户消息不需要Markdown渲染
+            // 用户消息直接显示文本
             if (isUser) {
                 messageDiv.textContent = content;
-            } else {
-                // 对AI回复进行Markdown渲染
-                const markdownContent = document.createElement('div');
-                markdownContent.className = 'markdown-content';
-                // 使用DOMPurify清理HTML，防止XSS攻击
-                markdownContent.innerHTML = DOMPurify.sanitize(marked.parse(content));
-                messageDiv.appendChild(markdownContent);
+            } 
+            // 助手消息使用Markdown渲染
+            else {
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'markdown-content';
                 
-                // 应用代码高亮
-                messageDiv.querySelectorAll('pre code').forEach((block) => {
-                    hljs.highlightBlock(block);
+                // 配置Marked选项
+                marked.setOptions({
+                    highlight: function(code, lang) {
+                        const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+                        return hljs.highlight(code, { language }).value;
+                    },
+                    langPrefix: 'hljs language-',
+                    breaks: true,   // 支持GitHub风格的换行符
+                    gfm: true       // 支持GitHub风格的Markdown
                 });
+                
+                // 渲染Markdown内容
+                contentDiv.innerHTML = marked.parse(content);
+                
+                // 处理代码块，为所有代码块添加语言标识和复制按钮
+                const codeBlocks = contentDiv.querySelectorAll('pre code');
+                codeBlocks.forEach((codeBlock, index) => {
+                    // 创建代码块容器
+                    const codeContainer = document.createElement('div');
+                    codeContainer.className = 'code-block-container';
+                    codeContainer.style.position = 'relative';
+                    
+                    // 获取语言标识
+                    const classNames = codeBlock.className.split(' ');
+                    let language = 'plaintext';
+                    for (const className of classNames) {
+                        if (className.startsWith('language-')) {
+                            language = className.replace('language-', '');
+                            break;
+                        }
+                    }
+                    
+                    // 创建语言标签
+                    const languageTag = document.createElement('div');
+                    languageTag.className = 'code-language';
+                    languageTag.textContent = language;
+                    languageTag.style.position = 'absolute';
+                    languageTag.style.top = '0';
+                    languageTag.style.right = '0';
+                    languageTag.style.padding = '2px 8px';
+                    languageTag.style.fontSize = '12px';
+                    languageTag.style.color = 'rgba(255, 255, 255, 0.7)';
+                    languageTag.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
+                    languageTag.style.borderRadius = '0 8px 0 8px';
+                    
+                    // 创建复制按钮
+                    const copyButton = document.createElement('button');
+                    copyButton.className = 'copy-button';
+                    copyButton.textContent = '复制';
+                    copyButton.style.position = 'absolute';
+                    copyButton.style.top = '0';
+                    copyButton.style.right = language === 'plaintext' ? '0' : '60px';
+                    copyButton.style.padding = '2px 8px';
+                    copyButton.style.fontSize = '12px';
+                    copyButton.style.color = 'rgba(255, 255, 255, 0.7)';
+                    copyButton.style.backgroundColor = 'rgba(29, 78, 216, 0.5)';
+                    copyButton.style.border = 'none';
+                    copyButton.style.borderRadius = '8px 0 8px 0';
+                    copyButton.style.cursor = 'pointer';
+                    
+                    // 添加复制功能
+                    copyButton.addEventListener('click', () => {
+                        const code = codeBlock.textContent;
+                        navigator.clipboard.writeText(code).then(() => {
+                            copyButton.textContent = '已复制';
+                            copyButton.style.backgroundColor = 'rgba(34, 197, 94, 0.5)';
+                            setTimeout(() => {
+                                copyButton.textContent = '复制';
+                                copyButton.style.backgroundColor = 'rgba(29, 78, 216, 0.5)';
+                            }, 2000);
+                        }).catch(err => {
+                            console.error('无法复制代码:', err);
+                            copyButton.textContent = '复制失败';
+                            copyButton.style.backgroundColor = 'rgba(220, 38, 38, 0.5)';
+                        });
+                    });
+                    
+                    // 将代码块包装在容器中
+                    const preElement = codeBlock.parentNode;
+                    const preParent = preElement.parentNode;
+                    codeContainer.appendChild(preElement);
+                    codeContainer.appendChild(languageTag);
+                    codeContainer.appendChild(copyButton);
+                    preParent.appendChild(codeContainer);
+                });
+                
+                messageDiv.appendChild(contentDiv);
             }
             
             chatContainer.appendChild(messageDiv);
@@ -1286,18 +1347,97 @@
             const message = document.createElement('div');
             message.className = 'message assistant-message';
             
-            // 使用Markdown渲染消息内容
-            const content = document.createElement('div');
-            content.className = 'markdown-content';
-            content.innerHTML = DOMPurify.sanitize(marked.parse(data.message || 'No response content'));
-            message.appendChild(content);
+            // 创建内容容器
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'markdown-content';
             
-            // 应用代码高亮
-            setTimeout(() => {
-                content.querySelectorAll('pre code').forEach((block) => {
-                    hljs.highlightBlock(block);
+            // 配置Marked选项
+            marked.setOptions({
+                highlight: function(code, lang) {
+                    const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+                    return hljs.highlight(code, { language }).value;
+                },
+                langPrefix: 'hljs language-',
+                breaks: true,   // 支持GitHub风格的换行符
+                gfm: true       // 支持GitHub风格的Markdown
+            });
+            
+            // 渲染Markdown内容
+            contentDiv.innerHTML = marked.parse(data.message || 'No response content');
+            
+            // 处理代码块，为所有代码块添加语言标识和复制按钮
+            const codeBlocks = contentDiv.querySelectorAll('pre code');
+            codeBlocks.forEach((codeBlock, index) => {
+                // 创建代码块容器
+                const codeContainer = document.createElement('div');
+                codeContainer.className = 'code-block-container';
+                codeContainer.style.position = 'relative';
+                
+                // 获取语言标识
+                const classNames = codeBlock.className.split(' ');
+                let language = 'plaintext';
+                for (const className of classNames) {
+                    if (className.startsWith('language-')) {
+                        language = className.replace('language-', '');
+                        break;
+                    }
+                }
+                
+                // 创建语言标签
+                const languageTag = document.createElement('div');
+                languageTag.className = 'code-language';
+                languageTag.textContent = language;
+                languageTag.style.position = 'absolute';
+                languageTag.style.top = '0';
+                languageTag.style.right = '0';
+                languageTag.style.padding = '2px 8px';
+                languageTag.style.fontSize = '12px';
+                languageTag.style.color = 'rgba(255, 255, 255, 0.7)';
+                languageTag.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
+                languageTag.style.borderRadius = '0 8px 0 8px';
+                
+                // 创建复制按钮
+                const copyButton = document.createElement('button');
+                copyButton.className = 'copy-button';
+                copyButton.textContent = '复制';
+                copyButton.style.position = 'absolute';
+                copyButton.style.top = '0';
+                copyButton.style.right = language === 'plaintext' ? '0' : '60px';
+                copyButton.style.padding = '2px 8px';
+                copyButton.style.fontSize = '12px';
+                copyButton.style.color = 'rgba(255, 255, 255, 0.7)';
+                copyButton.style.backgroundColor = 'rgba(29, 78, 216, 0.5)';
+                copyButton.style.border = 'none';
+                copyButton.style.borderRadius = '8px 0 8px 0';
+                copyButton.style.cursor = 'pointer';
+                
+                // 添加复制功能
+                copyButton.addEventListener('click', () => {
+                    const code = codeBlock.textContent;
+                    navigator.clipboard.writeText(code).then(() => {
+                        copyButton.textContent = '已复制';
+                        copyButton.style.backgroundColor = 'rgba(34, 197, 94, 0.5)';
+                        setTimeout(() => {
+                            copyButton.textContent = '复制';
+                            copyButton.style.backgroundColor = 'rgba(29, 78, 216, 0.5)';
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('无法复制代码:', err);
+                        copyButton.textContent = '复制失败';
+                        copyButton.style.backgroundColor = 'rgba(220, 38, 38, 0.5)';
+                    });
                 });
-            }, 0);
+                
+                // 将代码块包装在容器中
+                const preElement = codeBlock.parentNode;
+                const preParent = preElement.parentNode;
+                codeContainer.appendChild(preElement);
+                codeContainer.appendChild(languageTag);
+                codeContainer.appendChild(copyButton);
+                preParent.appendChild(codeContainer);
+            });
+            
+            message.appendChild(contentDiv);
             
             // 添加响应信息
             const info = document.createElement('div');
@@ -1321,9 +1461,20 @@
         });
 
         socket.on('load_conversation', (data) => {
-            data.messages.forEach(msg => {
-                addMessage(msg.content, msg.role === 'user');
-            });
+            // 清空当前聊天窗口
+            chatContainer.innerHTML = '';
+            // 隐藏主标题
+            mainTitle.style.display = 'none';
+            
+            // 加载历史消息
+            if (data.messages && Array.isArray(data.messages)) {
+                data.messages.forEach(msg => {
+                    addMessage(msg.content, msg.role === 'user');
+                });
+            }
+            
+            // 滚动到底部
+            chatContainer.scrollTop = chatContainer.scrollHeight;
         });
 
         socket.on('error', (data) => {
@@ -1362,8 +1513,8 @@
             const message = document.createElement('div');
             message.className = 'message assistant-message';
             const content = document.createElement('div');
-            content.className = 'markdown-content';
-            content.innerHTML = `<div style="color: var(--error-color);">**Error:** ${errorMessage}</div>`;
+            content.textContent = `Error: ${errorMessage}`;
+            content.style.color = 'var(--error-color)';
             message.appendChild(content);
             chatContainer.appendChild(message);
             chatContainer.scrollTop = chatContainer.scrollHeight;

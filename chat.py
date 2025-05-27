@@ -313,61 +313,38 @@ def send_message(messages, api_key=None, enable_live_search=False):
     """
     if not api_key:
         logger.error("API key not set")
-        return {'error': '请先在设置中配置有效的API密钥'}
-
-    # 配置重试策略
-    from requests.adapters import HTTPAdapter
-    from urllib3.util.retry import Retry
-    import socket
-    from urllib3.exceptions import MaxRetryError, NameResolutionError
-
-    # 创建自定义的 Session
-    session = requests.Session()
+        return {'error': 'Please configure a valid API key in settings'}
     
-    # 配置重试策略
-    retry_strategy = Retry(
-        total=3,  # 最大重试次数
-        backoff_factor=1,  # 重试间隔
-        status_forcelist=[500, 502, 503, 504],  # 需要重试的HTTP状态码
-        allowed_methods=["POST"],  # 允许重试的HTTP方法
-        respect_retry_after_header=True
-    )
-    
-    # 配置适配器
-    adapter = HTTPAdapter(max_retries=retry_strategy)
-    session.mount("https://", adapter)
-    session.mount("http://", adapter)
-
     try:
-        # 验证消息格式
+        # Validate message format
         if not isinstance(messages, list):
             logger.error("Invalid message format: not a list")
-            return {'error': '无效的消息格式'}
-
+            return {'error': 'Invalid message format'}
+        
         for msg in messages:
             if not isinstance(msg, dict) or 'role' not in msg or 'content' not in msg:
                 logger.error("Invalid message format: missing required fields")
-                return {'error': '无效的消息格式'}
-
-        # 记录请求详情
+                return {'error': 'Invalid message format'}
+        
+        # Log request details
         request_id = datetime.now().strftime('%Y%m%d%H%M%S')
         logger.debug(f"API request[{request_id}] initializing: message count={len(messages)}")
         logger.debug(f"API request[{request_id}] URL: {API_URL}")
-
-        # 从环境变量获取模型信息
+        
+        # Get model info from environment variables
         model = os.getenv('MODEL_NAME', 'grok-3-fast-latest')
         temperature = float(os.getenv('TEMPERATURE', '0'))
         logger.debug(f"API request[{request_id}] model: {model}, temperature: {temperature}")
-
-        # 构建请求数据
+        
+        # Build request data
         data = {
             'messages': messages,
             'model': model,
             'stream': False,
             'temperature': temperature
         }
-
-        # 如果启用Live Search，添加搜索参数
+        
+        # Add Live Search parameters if enabled
         if enable_live_search:
             data['search_parameters'] = {
                 'mode': 'auto',
@@ -375,76 +352,74 @@ def send_message(messages, api_key=None, enable_live_search=False):
                 'time_range': '24h'
             }
             logger.debug(f"API request[{request_id}] Live Search enabled")
-
-        # 构建请求头
+        
+        # Build request headers
         headers = {
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {api_key}',
             'User-Agent': 'Grok-API-Client/1.0'
         }
-
+        
         start_time = datetime.now()
-
+        
+        # Use requests library with proper error handling
+        import requests
+        
         try:
-            # 使用配置好的session发送请求
             logger.debug(f"API request[{request_id}] sending request to {API_URL}")
-            response = session.post(
-                API_URL,
-                json=data,
-                headers=headers,
+            response = requests.post(
+                API_URL, 
+                json=data, 
+                headers=headers, 
                 timeout=30,
-                verify=False  # 禁用SSL验证以避免问题
+                verify=False  # Disable SSL verification to avoid issues
             )
-
+            
             response_time = (datetime.now() - start_time).total_seconds()
             logger.debug(f"API request[{request_id}] response status: {response.status_code}, time: {response_time}s")
-
-            # 检查响应状态
+                
+            # Handle different status codes
             if response.status_code == 200:
+                response_json = response.json()
+                token_count = calculate_tokens(messages)
+                
+                logger.info(f"API request[{request_id}] successful, total time: {response_time}s")
+                
+                return {
+                    'response': response_json,
+                    'response_time': response_time,
+                    'token_count': token_count
+                }
+                
+            elif response.status_code == 401:
+                    return {'error': 'Invalid or expired API key, please update your API key'}
+            elif response.status_code == 429:
+                    return {'error': 'API request rate limit exceeded, please try again later'}
+            elif response.status_code == 500:
+                    return {'error': 'API server error, please try again later'}
+            elif response.status_code == 503:
+                    return {'error': 'API service temporarily unavailable, please try again later'}
+                else:
                 try:
-                    result = response.json()
-                    if 'choices' in result and len(result['choices']) > 0:
-                        message = result['choices'][0]['message']['content']
-                        token_count = result.get('usage', {}).get('total_tokens', 0)
-                        return {
-                            'message': message,
-                            'response_time': round(response_time, 2),
-                            'token_count': token_count,
-                            'request_id': request_id
-                        }
-                    else:
-                        logger.error(f"API request[{request_id}] invalid response format")
-                        return {'error': 'API返回格式无效'}
-                except json.JSONDecodeError as e:
-                    logger.error(f"API request[{request_id}] JSON decode error: {str(e)}")
-                    return {'error': '无法解析API响应'}
-            else:
-                error_msg = f"API request[{request_id}] failed with status {response.status_code}"
-                try:
-                    error_detail = response.json().get('error', {}).get('message', 'Unknown error')
-                    error_msg += f": {error_detail}"
+                    error_data = response.json()
+                    error_msg = error_data.get('error', {}).get('message', f'API error: {response.status_code}')
                 except:
-                    pass
-                logger.error(error_msg)
-                return {'error': f'API请求失败 (状态码: {response.status_code})'}
-
-        except (requests.exceptions.ConnectionError, MaxRetryError, NameResolutionError) as e:
-            logger.error(f"API request[{request_id}] connection error: {str(e)}")
-            if isinstance(e, NameResolutionError):
-                return {'error': '无法解析API服务器地址，请检查网络连接或DNS设置'}
-            return {'error': '网络连接失败，请检查您的网络连接'}
+                    error_msg = f'API error: {response.status_code}'
+                return {'error': error_msg}
+                
         except requests.exceptions.Timeout:
-            logger.error(f"API request[{request_id}] request timeout")
-            return {'error': '请求超时，请稍后重试'}
+            logger.error(f"API request[{request_id}] timeout")
+            return {'error': 'API request timeout, please check your network connection'}
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"API request[{request_id}] connection error: {str(e)}")
+            return {'error': 'Network connection failed, please check your internet connection'}
         except requests.exceptions.RequestException as e:
             logger.error(f"API request[{request_id}] request error: {str(e)}")
-            return {'error': f'请求错误: {str(e)}'}
-
+            return {'error': f'API request error: {str(e)}'}
+                
     except Exception as e:
-        logger.error(f"API request[{request_id}] unexpected error: {str(e)}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return {'error': '发生意外错误，请稍后重试'}
+        error_trace = log_exception(e, "Unknown error during message send")
+        return {'error': 'Unknown error occurred, please try again later'}
 
 @app.route('/')
 def index():
@@ -473,7 +448,7 @@ def health_check():
 @app.route('/api/status')
 def api_status():
     """API状态信息端点"""
-    return {
+                return {
         'api_url': API_URL,
         'model': os.getenv('MODEL_NAME', 'grok-3-fast-latest'),
         'max_conversations': session_manager.max_conversations,
@@ -526,7 +501,7 @@ def validate_api_key():
                 try:
                     error_data = response.json()
                     error_msg = error_data.get('error', {}).get('message', f'API请求失败: {response.status_code}')
-                except:
+                    except:
                     error_msg = f'API请求失败: {response.status_code}'
                 return {'valid': False, 'error': error_msg}
                 
@@ -535,7 +510,11 @@ def validate_api_key():
         except requests.exceptions.ConnectionError:
             return {'valid': False, 'error': '网络连接失败，请检查网络设置'}
     except Exception as e:
-        return {'valid': False, 'error': f'请求错误: {str(e)}'}
+            return {'valid': False, 'error': f'请求错误: {str(e)}'}
+            
+    except Exception as e:
+        logger.error(f"API密钥验证错误: {str(e)}")
+        return {'valid': False, 'error': '验证过程中发生错误'}
 
 @socketio.on('get_history')
 def get_history():
@@ -659,12 +638,12 @@ def handle_message(data):
         # Send processing confirmation
         socketio.emit('message_received', {
             'status': 'processing',
-            'request_id': request_id
-        }, room=request.sid)
+                    'request_id': request_id
+                }, room=request.sid)
 
         # Build system message
         system_message = 'You are a helpful assistant.'
-        logger.debug(f'[ID:{request_id}] Using default system message')
+            logger.debug(f'[ID:{request_id}] Using default system message')
 
         # Build API request message list - Fix the logic here to ensure messages are added in the correct order
         messages = [{'role': 'system', 'content': system_message}]
@@ -826,15 +805,15 @@ if __name__ == '__main__':
     logger.info(f"🔍 Live Search: Integrated with xAI API")
     
     try:
-        # In cloud environments, host and port are usually automatically assigned
-        socketio.run(
-            app, 
+    # In cloud environments, host and port are usually automatically assigned
+    socketio.run(
+        app, 
             host=host, 
-            port=port,
+        port=port,
             debug=debug_mode,
             use_reloader=False,  # Disable reloader for production
             log_output=debug_mode  # Only log output in debug mode
-        )
+    )
     except Exception as e:
         logger.error(f"❌ Failed to start server: {str(e)}")
         import traceback
