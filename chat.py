@@ -313,38 +313,61 @@ def send_message(messages, api_key=None, enable_live_search=False):
     """
     if not api_key:
         logger.error("API key not set")
-        return {'error': 'Please configure a valid API key in settings'}
+        return {'error': '请先在设置中配置有效的API密钥'}
+
+    # 配置重试策略
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry
+    import socket
+    from urllib3.exceptions import MaxRetryError, NameResolutionError
+
+    # 创建自定义的 Session
+    session = requests.Session()
     
+    # 配置重试策略
+    retry_strategy = Retry(
+        total=3,  # 最大重试次数
+        backoff_factor=1,  # 重试间隔
+        status_forcelist=[500, 502, 503, 504],  # 需要重试的HTTP状态码
+        allowed_methods=["POST"],  # 允许重试的HTTP方法
+        respect_retry_after_header=True
+    )
+    
+    # 配置适配器
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+
     try:
-        # Validate message format
+        # 验证消息格式
         if not isinstance(messages, list):
             logger.error("Invalid message format: not a list")
-            return {'error': 'Invalid message format'}
-        
+            return {'error': '无效的消息格式'}
+
         for msg in messages:
             if not isinstance(msg, dict) or 'role' not in msg or 'content' not in msg:
                 logger.error("Invalid message format: missing required fields")
-                return {'error': 'Invalid message format'}
-        
-        # Log request details
+                return {'error': '无效的消息格式'}
+
+        # 记录请求详情
         request_id = datetime.now().strftime('%Y%m%d%H%M%S')
         logger.debug(f"API request[{request_id}] initializing: message count={len(messages)}")
         logger.debug(f"API request[{request_id}] URL: {API_URL}")
-        
-        # Get model info from environment variables
+
+        # 从环境变量获取模型信息
         model = os.getenv('MODEL_NAME', 'grok-3-fast-latest')
         temperature = float(os.getenv('TEMPERATURE', '0'))
         logger.debug(f"API request[{request_id}] model: {model}, temperature: {temperature}")
-        
-        # Build request data
+
+        # 构建请求数据
         data = {
             'messages': messages,
             'model': model,
             'stream': False,
             'temperature': temperature
         }
-        
-        # Add Live Search parameters if enabled
+
+        # 如果启用Live Search，添加搜索参数
         if enable_live_search:
             data['search_parameters'] = {
                 'mode': 'auto',
@@ -352,74 +375,76 @@ def send_message(messages, api_key=None, enable_live_search=False):
                 'time_range': '24h'
             }
             logger.debug(f"API request[{request_id}] Live Search enabled")
-        
-        # Build request headers
+
+        # 构建请求头
         headers = {
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {api_key}',
             'User-Agent': 'Grok-API-Client/1.0'
         }
-        
+
         start_time = datetime.now()
-        
-        # Use requests library with proper error handling
-        import requests
-        
+
         try:
+            # 使用配置好的session发送请求
             logger.debug(f"API request[{request_id}] sending request to {API_URL}")
-            response = requests.post(
-                API_URL, 
-                json=data, 
-                headers=headers, 
+            response = session.post(
+                API_URL,
+                json=data,
+                headers=headers,
                 timeout=30,
-                verify=False  # Disable SSL verification to avoid issues
+                verify=False  # 禁用SSL验证以避免问题
             )
-            
+
             response_time = (datetime.now() - start_time).total_seconds()
             logger.debug(f"API request[{request_id}] response status: {response.status_code}, time: {response_time}s")
-            
-            # Handle different status codes
+
+            # 检查响应状态
             if response.status_code == 200:
-                response_json = response.json()
-                token_count = calculate_tokens(messages)
-                
-                logger.info(f"API request[{request_id}] successful, total time: {response_time}s")
-                
-                return {
-                    'response': response_json,
-                    'response_time': response_time,
-                    'token_count': token_count
-                }
-                
-            elif response.status_code == 401:
-                return {'error': 'Invalid or expired API key, please update your API key'}
-            elif response.status_code == 429:
-                return {'error': 'API request rate limit exceeded, please try again later'}
-            elif response.status_code == 500:
-                return {'error': 'API server error, please try again later'}
-            elif response.status_code == 503:
-                return {'error': 'API service temporarily unavailable, please try again later'}
-            else:
                 try:
-                    error_data = response.json()
-                    error_msg = error_data.get('error', {}).get('message', f'API error: {response.status_code}')
+                    result = response.json()
+                    if 'choices' in result and len(result['choices']) > 0:
+                        message = result['choices'][0]['message']['content']
+                        token_count = result.get('usage', {}).get('total_tokens', 0)
+                        return {
+                            'message': message,
+                            'response_time': round(response_time, 2),
+                            'token_count': token_count,
+                            'request_id': request_id
+                        }
+                    else:
+                        logger.error(f"API request[{request_id}] invalid response format")
+                        return {'error': 'API返回格式无效'}
+                except json.JSONDecodeError as e:
+                    logger.error(f"API request[{request_id}] JSON decode error: {str(e)}")
+                    return {'error': '无法解析API响应'}
+            else:
+                error_msg = f"API request[{request_id}] failed with status {response.status_code}"
+                try:
+                    error_detail = response.json().get('error', {}).get('message', 'Unknown error')
+                    error_msg += f": {error_detail}"
                 except:
-                    error_msg = f'API error: {response.status_code}'
-                return {'error': error_msg}
-                
-        except requests.exceptions.Timeout:
-            logger.error(f"API request[{request_id}] timeout")
-            return {'error': 'API request timeout, please check your network connection'}
-        except requests.exceptions.ConnectionError as e:
+                    pass
+                logger.error(error_msg)
+                return {'error': f'API请求失败 (状态码: {response.status_code})'}
+
+        except (requests.exceptions.ConnectionError, MaxRetryError, NameResolutionError) as e:
             logger.error(f"API request[{request_id}] connection error: {str(e)}")
-            return {'error': 'Network connection failed, please check your internet connection'}
+            if isinstance(e, NameResolutionError):
+                return {'error': '无法解析API服务器地址，请检查网络连接或DNS设置'}
+            return {'error': '网络连接失败，请检查您的网络连接'}
+        except requests.exceptions.Timeout:
+            logger.error(f"API request[{request_id}] request timeout")
+            return {'error': '请求超时，请稍后重试'}
         except requests.exceptions.RequestException as e:
             logger.error(f"API request[{request_id}] request error: {str(e)}")
-            return {'error': f'API request error: {str(e)}'}
-                
+            return {'error': f'请求错误: {str(e)}'}
+
     except Exception as e:
-        error_trace = log_exception(e, "Unknown error during message send")
-        return {'error': 'Unknown error occurred, please try again later'}
+        logger.error(f"API request[{request_id}] unexpected error: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return {'error': '发生意外错误，请稍后重试'}
 
 @app.route('/')
 def index():
@@ -509,12 +534,8 @@ def validate_api_key():
             return {'valid': False, 'error': '请求超时，请检查网络连接'}
         except requests.exceptions.ConnectionError:
             return {'valid': False, 'error': '网络连接失败，请检查网络设置'}
-        except Exception as e:
-            return {'valid': False, 'error': f'请求错误: {str(e)}'}
-            
     except Exception as e:
-        logger.error(f"API密钥验证错误: {str(e)}")
-        return {'valid': False, 'error': '验证过程中发生错误'}
+        return {'valid': False, 'error': f'请求错误: {str(e)}'}
 
 @socketio.on('get_history')
 def get_history():
