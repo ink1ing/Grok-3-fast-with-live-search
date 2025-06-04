@@ -805,15 +805,15 @@ if __name__ == '__main__':
     logger.info(f"🔍 Live Search: Integrated with xAI API")
     
     try:
-    # In cloud environments, host and port are usually automatically assigned
-    socketio.run(
-        app, 
+        # In cloud environments, host and port are usually automatically assigned
+        socketio.run(
+            app, 
             host=host, 
-        port=port,
+            port=port,
             debug=debug_mode,
             use_reloader=False,  # Disable reloader for production
             log_output=debug_mode  # Only log output in debug mode
-    )
+        )
     except Exception as e:
         logger.error(f"❌ Failed to start server: {str(e)}")
         import traceback

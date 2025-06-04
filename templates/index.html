@@ -773,11 +773,65 @@
                 max-width: 50%;
             }
         }
+
+        /* 连接状态指示器样式 */
+        #status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            transition: background-color 0.3s ease;
+        }
+        
+        #status-indicator.connected {
+            background-color: #10b981;
+        }
+        
+        #status-indicator.disconnected {
+            background-color: #ef4444;
+        }
+        
+        #status-indicator.connecting {
+            background-color: #f59e0b;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+        
+        #connection-status {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            backdrop-filter: blur(5px);
+            transition: all 0.3s ease;
+        }
+        
+        #status-text {
+            margin-left: 5px;
+            font-size: 12px;
+            color: white;
+        }
     </style>
 </head>
 <body>
     <button id="sidebar-toggle">☰</button>
     <div class="title" draggable="true">Grok 3.0 Local: Built by Ink 🧑🏻‍💻</div>
+    
+    <!-- 添加连接状态指示器 -->
+    <div id="connection-status" style="position: fixed; bottom: 10px; right: 10px; z-index: 100; display: flex; align-items: center; background: rgba(0, 0, 0, 0.5); padding: 5px 10px; border-radius: 15px;">
+        <div id="status-indicator" class="disconnected" style="width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; background-color: red;"></div>
+        <span id="status-text" style="font-size: 12px; color: white;">未连接</span>
+    </div>
     <script>
         // Title interaction
         const title = document.querySelector('.title');
@@ -859,30 +913,73 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
-        // Get current URL host part to ensure correct connection in deployment environment
-        const currentUrl = window.location.origin;
-        
-        // Dynamically build WebSocket connection URL
-        const socketUrl = currentUrl;
-        console.log('Connecting to WebSocket server:', socketUrl);
-        
-        // Initialize Socket.IO connection
-        const socket = io(socketUrl, {
-            path: '/socket.io'
+        // 初始化Socket.IO连接
+        const socket = io({
+            reconnection: true,            // 启用自动重连
+            reconnectionAttempts: 5,       // 重连尝试次数
+            reconnectionDelay: 1000,       // 重连延迟(ms)
+            reconnectionDelayMax: 5000,    // 最大重连延迟
+            timeout: 20000,                // 连接超时时间
+            autoConnect: true              // 自动连接
         });
         
         // Add connection status logs
-        socket.on('connect', function() {
-            console.log('WebSocket connection successful, ID:', socket.id);
-            showNotification('服务器连接成功', 'success');
+        socket.on('connect', () => {
+            console.log('Socket.IO连接成功');
+            document.getElementById('status-indicator').className = 'connected';
+            document.getElementById('status-text').textContent = '已连接';
+            socketReconnecting = false;
             
-            // Resend API key after successful connection
-            if(apiKey) {
-                console.log('Resending API key to server');
-                // Don't call sendMessage() here, just emit settings
-                socket.emit('update_settings', { api_key: apiKey });
+            // 连接后重新获取历史记录
+            socket.emit('get_history');
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('Socket.IO连接错误:', error);
+            document.getElementById('status-indicator').className = 'disconnected';
+            document.getElementById('status-text').textContent = '连接错误';
+            
+            // 显示连接错误通知
+            showNotification('服务器连接错误，请检查网络连接', 'error');
+        });
+
+        socket.on('disconnect', (reason) => {
+            console.log('Socket.IO断开连接:', reason);
+            document.getElementById('status-indicator').className = 'disconnected';
+            document.getElementById('status-text').textContent = '已断开';
+            
+            // 如果不是客户端主动断开，则尝试重连
+            if (reason !== 'io client disconnect') {
+                showNotification('服务器连接断开，正在尝试重连...', 'error');
             }
         });
+
+        socket.on('reconnect', (attemptNumber) => {
+            console.log(`Socket.IO重连成功，尝试次数: ${attemptNumber}`);
+            document.getElementById('status-indicator').className = 'connected';
+            document.getElementById('status-text').textContent = '已重连';
+            showNotification('服务器连接已恢复', 'success');
+        });
+
+        socket.on('reconnect_attempt', (attemptNumber) => {
+            console.log(`Socket.IO正在尝试重连: ${attemptNumber}`);
+            document.getElementById('status-indicator').className = 'connecting';
+            document.getElementById('status-text').textContent = '正在重连';
+        });
+
+        socket.on('reconnect_error', (error) => {
+            console.error('Socket.IO重连错误:', error);
+            document.getElementById('status-indicator').className = 'disconnected';
+            document.getElementById('status-text').textContent = '重连错误';
+        });
+
+        socket.on('reconnect_failed', () => {
+            console.error('Socket.IO重连失败');
+            document.getElementById('status-indicator').className = 'disconnected';
+            document.getElementById('status-text').textContent = '重连失败';
+            showNotification('无法连接到服务器，请刷新页面重试', 'error');
+        });
+
         const chatContainer = document.getElementById('chat-container');
         const userInput = document.getElementById('user-input');
         const thinking = document.getElementById('thinking');
@@ -953,50 +1050,6 @@
                 e.target.id !== 'sidebar-toggle') {
                 document.body.classList.remove('sidebar-visible');
             }
-        });
-
-        // 配置WebSocket连接
-        socket.on('connect_error', (error) => {
-            console.error('WebSocket connection error:', error);
-            showNotification('服务器连接失败，正在重试...', 'error');
-            // Delay reconnection to avoid continuous failures
-            socketReconnecting = true;
-            setTimeout(function() {
-                socket.connect();
-            }, 3000);
-        });
-
-        socket.on('disconnect', (reason) => {
-            console.log('WebSocket disconnected, reason:', reason);
-            showNotification('服务器连接断开，正在重连...', 'error');
-            if (reason === 'io server disconnect') {
-                // 服务器主动断开连接，需要手动重连
-                socket.connect();
-            }
-            // 其他情况socket.io会自动尝试重连
-        });
-        
-        // 添加重连尝试事件监听
-        socket.on('reconnect_attempt', (attemptNumber) => {
-            console.log(`Attempting to reconnect (${attemptNumber}/${socket.io.opts.reconnectionAttempts})`);
-        });
-        
-        socket.on('reconnect', (attemptNumber) => {
-            console.log(`Reconnected successfully, attempt count: ${attemptNumber}`);
-            showNotification('服务器重连成功', 'success');
-            // 重新发送API密钥
-            if (apiKey) {
-                socket.emit('update_settings', { api_key: apiKey });
-            }
-        });
-        
-        socket.on('reconnect_error', (error) => {
-            console.error('Reconnection failed:', error);
-        });
-        
-        socket.on('reconnect_failed', () => {
-            console.error('Reconnection failed, maximum attempts reached');
-            showNotification('服务器连接失败，请刷新页面重试', 'error');
         });
 
         // 打开设置弹窗
