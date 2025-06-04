@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from flask import Flask, render_template, session, request
 from flask_socketio import SocketIO
+from flask_cors import CORS  # 导入CORS支持
 import requests
 import json
 import os
@@ -77,15 +78,20 @@ def log_exception(e, prefix="Error"):
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key')
 
+# 添加CORS支持，允许所有源访问
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+
 # Configure SocketIO with cloud-friendly options
 socketio = SocketIO(
     app,
-    cors_allowed_origins="*",  # Allow cross-origin requests
-    ping_timeout=60,          # Reduce timeout for better cloud compatibility
-    ping_interval=25,         # Increase ping interval for cloud stability
-    async_mode='threading',   # Use threading for better compatibility
-    logger=False,             # Disable SocketIO logging in production
-    engineio_logger=False     # Disable Engine.IO logging in production
+    cors_allowed_origins="*",        # Allow cross-origin requests
+    ping_timeout=60,                 # Reduce timeout for better cloud compatibility
+    ping_interval=25,                # Increase ping interval for cloud stability
+    async_mode='threading',          # Use threading for better compatibility
+    logger=True,                     # Enable SocketIO logging for troubleshooting
+    engineio_logger=True,            # Enable Engine.IO logging for troubleshooting
+    manage_session=False,            # Don't let SocketIO manage Flask sessions
+    always_connect=True              # Always attempt to connect
 )
 
 # API endpoint for Grok API
@@ -782,6 +788,223 @@ def handle_message(data):
             'message': f'An unknown error occurred, please try again later',
             'request_id': request_id
         }, room=request.sid)
+
+@app.route('/socket-test')
+def socket_test():
+    """Socket.IO连接测试页面，带有更多控制选项"""
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Socket.IO测试</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+        <style>
+            body { font-family: Arial; padding: 20px; max-width: 800px; margin: 0 auto; }
+            #log { background: #f0f0f0; padding: 10px; height: 300px; overflow-y: auto; margin: 20px 0; font-family: monospace; }
+            .controls { display: flex; gap: 10px; margin-bottom: 20px; }
+            button { padding: 8px 16px; cursor: pointer; }
+            .success { color: green; }
+            .error { color: red; }
+            .info { color: blue; }
+        </style>
+    </head>
+    <body>
+        <h1>Socket.IO连接测试</h1>
+        
+        <div class="controls">
+            <button id="connect">连接</button>
+            <button id="disconnect">断开</button>
+            <button id="clear">清空日志</button>
+        </div>
+        
+        <div class="controls">
+            <label>
+                <input type="radio" name="transport" value="polling,websocket" checked> 自动 (先polling后websocket)
+            </label>
+            <label>
+                <input type="radio" name="transport" value="polling"> 仅Polling
+            </label>
+            <label>
+                <input type="radio" name="transport" value="websocket"> 仅WebSocket
+            </label>
+        </div>
+        
+        <div id="log"></div>
+        
+        <script>
+            const log = document.getElementById('log');
+            let socket;
+            
+            function addLog(msg, type = '') {
+                const time = new Date().toLocaleTimeString();
+                log.innerHTML += `<div class="${type}">[${time}] ${msg}</div>`;
+                log.scrollTop = log.scrollHeight;
+            }
+            
+            function createSocket() {
+                // 获取选中的传输方式
+                const transportValue = document.querySelector('input[name="transport"]:checked').value;
+                const transports = transportValue.split(',');
+                
+                addLog(`创建Socket连接，传输方式: ${transportValue}`, 'info');
+                
+                // 初始化Socket.IO连接但不自动连接
+                return io({
+                    autoConnect: false,
+                    transports: transports
+                });
+            }
+            
+            function setupSocketListeners(socket) {
+                socket.on('connect', () => {
+                    addLog(`连接成功，ID: ${socket.id}`, 'success');
+                    addLog(`当前传输方式: ${socket.io.engine.transport.name}`, 'info');
+                    
+                    // 检查是否支持升级
+                    if (socket.io.engine.transport.name === 'polling') {
+                        addLog('支持传输升级，等待升级到WebSocket...', 'info');
+                    }
+                });
+                
+                socket.io.engine.on('upgrade', () => {
+                    addLog(`传输已升级至: ${socket.io.engine.transport.name}`, 'success');
+                });
+                
+                socket.on('connect_error', (err) => {
+                    addLog(`连接错误: ${err.message}`, 'error');
+                });
+                
+                socket.on('disconnect', (reason) => {
+                    addLog(`断开连接: ${reason}`, 'info');
+                });
+                
+                socket.on('debug_info', (data) => {
+                    addLog(`服务器信息: ${JSON.stringify(data)}`, 'info');
+                });
+            }
+            
+            // 创建初始Socket对象
+            socket = createSocket();
+            setupSocketListeners(socket);
+            
+            // 连接按钮
+            document.getElementById('connect').addEventListener('click', () => {
+                // 如果已经连接，先断开
+                if (socket.connected) {
+                    socket.disconnect();
+                    // 短暂延迟后重新连接
+                    setTimeout(() => {
+                        socket = createSocket();
+                        setupSocketListeners(socket);
+                        socket.connect();
+                    }, 500);
+                } else {
+                    socket.connect();
+                }
+            });
+            
+            // 断开按钮
+            document.getElementById('disconnect').addEventListener('click', () => {
+                addLog('手动断开连接', 'info');
+                socket.disconnect();
+            });
+            
+            // 清空日志
+            document.getElementById('clear').addEventListener('click', () => {
+                log.innerHTML = '';
+            });
+            
+            // 监听传输方式变化
+            document.querySelectorAll('input[name="transport"]').forEach(radio => {
+                radio.addEventListener('change', () => {
+                    if (socket.connected) {
+                        socket.disconnect();
+                    }
+                    socket = createSocket();
+                    setupSocketListeners(socket);
+                });
+            });
+            
+            // 初始日志
+            addLog('页面已加载，点击"连接"按钮开始连接', 'info');
+        </script>
+    </body>
+    </html>
+    """
+
+@socketio.on('connect')
+def handle_connect():
+    """处理客户端连接"""
+    from flask import request  # 确保导入request
+    client_id = request.sid
+    client_ip = request.remote_addr
+    transport = request.environ.get('socketio.transport', 'unknown')
+    environ = {k: v for k, v in request.environ.items() if k.startswith('HTTP_') or k.startswith('REMOTE_')}
+    
+    logger.info(f"客户端连接: {client_id}, IP: {client_ip}, 传输: {transport}")
+    
+    # 发送调试信息给客户端
+    socketio.emit('debug_info', {
+        'server_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'transport': transport,
+        'client_id': client_id,
+        'client_ip': client_ip,
+        'environ': str(environ)
+    }, room=client_id)
+    return True
+
+@app.route('/simple-socket-test')
+def simple_socket_test():
+    """最简单的Socket.IO连接测试页面"""
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>简单Socket.IO测试</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+        <style>
+            body { font-family: Arial; padding: 20px; }
+            #log { background: #f0f0f0; padding: 10px; height: 300px; overflow-y: auto; margin: 20px 0; }
+        </style>
+    </head>
+    <body>
+        <h1>简单Socket.IO测试</h1>
+        <div id="log"></div>
+        
+        <script>
+            const log = document.getElementById('log');
+            
+            function addLog(msg) {
+                const time = new Date().toLocaleTimeString();
+                log.innerHTML += `<div>[${time}] ${msg}</div>`;
+                log.scrollTop = log.scrollHeight;
+            }
+            
+            addLog('页面已加载，准备连接Socket.IO...');
+            
+            // 最简单的连接方式
+            const socket = io();
+            
+            socket.on('connect', () => {
+                addLog(`连接成功! Socket ID: ${socket.id}`);
+                addLog(`传输方式: ${socket.io.engine.transport.name}`);
+            });
+            
+            socket.on('connect_error', (err) => {
+                addLog(`连接错误: ${err.message}`);
+            });
+            
+            socket.on('disconnect', (reason) => {
+                addLog(`断开连接: ${reason}`);
+            });
+            
+            socket.on('debug_info', (data) => {
+                addLog(`服务器信息: ${JSON.stringify(data)}`);
+            });
+        </script>
+    </body>
+    </html>
+    """
 
 if __name__ == '__main__':
     # Start cleanup task

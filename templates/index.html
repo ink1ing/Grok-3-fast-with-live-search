@@ -831,6 +831,17 @@
     <div id="connection-status" style="position: fixed; bottom: 10px; right: 10px; z-index: 100; display: flex; align-items: center; background: rgba(0, 0, 0, 0.5); padding: 5px 10px; border-radius: 15px;">
         <div id="status-indicator" class="disconnected" style="width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; background-color: red;"></div>
         <span id="status-text" style="font-size: 12px; color: white;">未连接</span>
+        <button id="debug-btn" style="margin-left: 5px; font-size: 10px; background: rgba(255,255,255,0.2); border: none; color: white; border-radius: 3px; padding: 2px 5px; cursor: pointer;">调试</button>
+    </div>
+    
+    <!-- 调试信息弹窗 -->
+    <div id="debug-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #222; padding: 20px; border-radius: 10px; width: 80%; max-width: 500px;">
+            <h3 style="color: white; margin-top: 0;">连接调试信息</h3>
+            <div id="debug-info" style="color: #ddd; font-family: monospace; background: #111; padding: 10px; border-radius: 5px; max-height: 300px; overflow-y: auto;"></div>
+            <button id="close-debug" style="margin-top: 15px; background: #333; border: none; color: white; padding: 5px 10px; border-radius: 5px; cursor: pointer;">关闭</button>
+            <button id="retry-connection" style="margin-top: 15px; margin-left: 10px; background: #0066cc; border: none; color: white; padding: 5px 10px; border-radius: 5px; cursor: pointer;">重试连接</button>
+        </div>
     </div>
     <script>
         // Title interaction
@@ -915,23 +926,93 @@
     <script>
         // 初始化Socket.IO连接
         const socket = io({
-            reconnection: true,            // 启用自动重连
-            reconnectionAttempts: 5,       // 重连尝试次数
-            reconnectionDelay: 1000,       // 重连延迟(ms)
-            reconnectionDelayMax: 5000,    // 最大重连延迟
-            timeout: 20000,                // 连接超时时间
-            autoConnect: true              // 自动连接
+            path: '/socket.io',           // 显式指定Socket.IO路径
+            reconnection: true,           // 启用自动重连
+            reconnectionAttempts: 5,      // 重连尝试次数
+            reconnectionDelay: 1000,      // 重连延迟(ms)
+            reconnectionDelayMax: 5000,   // 最大重连延迟
+            timeout: 20000,               // 连接超时时间
+            transports: ['websocket', 'polling'], // 先尝试WebSocket，然后是polling
+            upgrade: true,                // 允许传输升级
+            forceNew: true,               // 强制创建新连接
+            withCredentials: true         // 携带凭据（解决CORS问题）
         });
         
-        // Add connection status logs
+        // 调试功能
+        let debugInfo = [];
+        
+        function addDebugInfo(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            debugInfo.push(`[${timestamp}] ${message}`);
+            // 保持最多100条记录
+            if (debugInfo.length > 100) {
+                debugInfo.shift();
+            }
+            
+            // 更新调试信息显示
+            const debugInfoEl = document.getElementById('debug-info');
+            if (debugInfoEl) {
+                debugInfoEl.innerHTML = debugInfo.join('<br>');
+                debugInfoEl.scrollTop = debugInfoEl.scrollHeight;
+            }
+        }
+        
+        // 调试按钮事件
+        document.getElementById('debug-btn').addEventListener('click', function() {
+            document.getElementById('debug-modal').style.display = 'block';
+            document.getElementById('debug-info').innerHTML = debugInfo.join('<br>');
+        });
+        
+        // 关闭调试弹窗
+        document.getElementById('close-debug').addEventListener('click', function() {
+            document.getElementById('debug-modal').style.display = 'none';
+        });
+        
+        // 添加CORS测试功能
+        function testCORSWithFetch() {
+            addDebugInfo('测试CORS连接...');
+            
+            fetch('/health', {
+                method: 'GET',
+                credentials: 'include'
+            })
+            .then(response => response.json())
+            .then(data => {
+                addDebugInfo(`CORS测试成功: ${JSON.stringify(data)}`);
+            })
+            .catch(error => {
+                addDebugInfo(`CORS测试失败: ${error.message}`);
+            });
+        }
+        
+        // 添加重试连接按钮
+        document.getElementById('retry-connection').addEventListener('click', function() {
+            addDebugInfo('手动重试连接...');
+            testCORSWithFetch(); // 先测试CORS
+            socket.disconnect();
+            setTimeout(() => {
+                socket.connect();
+            }, 1000);
+        });
+        
+        // 增强Socket.IO事件监听，加入调试信息
         socket.on('connect', () => {
             console.log('Socket.IO连接成功');
             document.getElementById('status-indicator').className = 'connected';
             document.getElementById('status-text').textContent = '已连接';
             socketReconnecting = false;
             
+            addDebugInfo(`Socket连接成功! ID: ${socket.id}`);
+            addDebugInfo(`当前传输方式: ${socket.io.engine.transport.name}`);
+            
             // 连接后重新获取历史记录
             socket.emit('get_history');
+            
+            // 如果API密钥已设置，发送到服务器
+            if (apiKey) {
+                socket.emit('update_settings', { api_key: apiKey });
+                addDebugInfo('已发送API密钥到服务器');
+            }
         });
 
         socket.on('connect_error', (error) => {
@@ -939,8 +1020,13 @@
             document.getElementById('status-indicator').className = 'disconnected';
             document.getElementById('status-text').textContent = '连接错误';
             
+            // 记录详细错误信息
+            addDebugInfo(`连接错误: ${error.message || error}`);
+            addDebugInfo(`URL: ${window.location.href}`);
+            addDebugInfo(`传输方式: ${socket.io?.engine?.transport?.name || '未知'}`);
+            
             // 显示连接错误通知
-            showNotification('服务器连接错误，请检查网络连接', 'error');
+            showNotification('服务器连接错误，请点击调试按钮查看详情', 'error');
         });
 
         socket.on('disconnect', (reason) => {
@@ -948,9 +1034,12 @@
             document.getElementById('status-indicator').className = 'disconnected';
             document.getElementById('status-text').textContent = '已断开';
             
+            addDebugInfo(`连接断开，原因: ${reason}`);
+            
             // 如果不是客户端主动断开，则尝试重连
             if (reason !== 'io client disconnect') {
                 showNotification('服务器连接断开，正在尝试重连...', 'error');
+                addDebugInfo('自动尝试重连中...');
             }
         });
 
@@ -958,6 +1047,7 @@
             console.log(`Socket.IO重连成功，尝试次数: ${attemptNumber}`);
             document.getElementById('status-indicator').className = 'connected';
             document.getElementById('status-text').textContent = '已重连';
+            addDebugInfo(`重连成功，尝试次数: ${attemptNumber}`);
             showNotification('服务器连接已恢复', 'success');
         });
 
@@ -965,19 +1055,27 @@
             console.log(`Socket.IO正在尝试重连: ${attemptNumber}`);
             document.getElementById('status-indicator').className = 'connecting';
             document.getElementById('status-text').textContent = '正在重连';
+            addDebugInfo(`正在尝试重连: 第${attemptNumber}次`);
         });
 
         socket.on('reconnect_error', (error) => {
             console.error('Socket.IO重连错误:', error);
             document.getElementById('status-indicator').className = 'disconnected';
             document.getElementById('status-text').textContent = '重连错误';
+            addDebugInfo(`重连错误: ${error.message || error}`);
         });
 
         socket.on('reconnect_failed', () => {
             console.error('Socket.IO重连失败');
             document.getElementById('status-indicator').className = 'disconnected';
             document.getElementById('status-text').textContent = '重连失败';
+            addDebugInfo('重连失败，已达到最大尝试次数');
             showNotification('无法连接到服务器，请刷新页面重试', 'error');
+        });
+
+        // 监听自定义事件以获取更多调试信息
+        socket.on('debug_info', (data) => {
+            addDebugInfo(`服务器调试信息: ${JSON.stringify(data)}`);
         });
 
         const chatContainer = document.getElementById('chat-container');
