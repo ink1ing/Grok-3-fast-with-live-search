@@ -71,7 +71,7 @@ python chat.py
 # 安装 Heroku CLI 后执行
 heroku create your-app-name
 heroku config:set API_URL=https://api.x.ai/v1/chat/completions
-heroku config:set MODEL_NAME=grok-3-fast-latest
+heroku config:set MODEL_NAME=grok-3-latest
 heroku config:set SECRET_KEY=your-secret-key
 git push heroku main
 ```
@@ -81,7 +81,7 @@ git push heroku main
 | 变量名 | 描述 | 默认值 | 必需 |
 |--------|------|--------|------|
 | `API_URL` | xAI API 端点 | `https://api.x.ai/v1/chat/completions` | ✅ |
-| `MODEL_NAME` | 使用的模型名称 | `grok-3-fast-latest` | ✅ |
+| `MODEL_NAME` | 使用的模型名称 | `grok-3-latest` | ✅ |
 | `TEMPERATURE` | 模型温度参数 | `0` | ❌ |
 | `SECRET_KEY` | Flask 密钥 | 随机生成 | ✅ |
 | `DEBUG` | 调试模式 | `False` | ❌ |

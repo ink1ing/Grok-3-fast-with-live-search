@@ -71,7 +71,7 @@ def test_api_url():
 
 def test_model_config():
     """测试模型配置"""
-    model = os.getenv('MODEL_NAME', 'grok-3-fast-latest')
+    model = os.getenv('MODEL_NAME', 'grok-3-latest')
     temperature = os.getenv('TEMPERATURE', '0')
     
     print(f"✅ 模型: {model}")
@@ -111,4 +111,4 @@ if __name__ == "__main__":
     print("使用方法:")
     print("1. 在设置中开启'xAI Live Search'开关")
     print("2. Live Search将使用您的xAI API密钥自动工作")
-    print("3. 免费测试期至2025年6月5日") 
+    print("3. 免费测试期至2025年6月5日")

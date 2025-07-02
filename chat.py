@@ -509,7 +509,7 @@ def send_message(messages, api_key=None, enable_live_search=False):
         logger.debug(f"DNS check passed for {hostname}")
         
         # Get model info from environment variables
-        model = os.getenv('MODEL_NAME', 'grok-3-fast-latest')
+        model = os.getenv('MODEL_NAME', 'grok-3-latest')
         temperature = float(os.getenv('TEMPERATURE', '0'))
         logger.debug(f"API request[{request_id}] model: {model}, temperature: {temperature}")
         
@@ -708,7 +708,7 @@ def validate_api_key():
         
         data_payload = {
             'messages': [{'role': 'user', 'content': 'Hi'}],
-            'model': os.getenv('MODEL_NAME', 'grok-3-fast-latest'),
+            'model': os.getenv('MODEL_NAME', 'grok-3-latest'),
             'max_tokens': 1
         }
         
@@ -1281,7 +1281,7 @@ if __name__ == '__main__':
     logger.info(f"🚀 Grok 3.0 Chat Application Starting...")
     logger.info(f"📡 Server: {host}:{port}")
     logger.info(f"🔗 API URL: {API_URL}")
-    logger.info(f"🤖 Model: {os.getenv('MODEL_NAME', 'grok-3-fast-latest')}")
+    logger.info(f"🤖 Model: {os.getenv('MODEL_NAME', 'grok-3-latest')}")
     logger.info(f"🔧 Debug Mode: {debug_mode}")
     logger.info(f"💾 Max Conversations: {session_manager.max_conversations}")
     logger.info(f"💬 Max Messages per Conversation: {session_manager.max_messages_per_conversation}")
