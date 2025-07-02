@@ -429,16 +429,36 @@ def calculate_tokens(messages):
     total_tokens = sum(len(msg['content']) for msg in messages)
     return total_tokens
 
-def dns_precheck(hostname):
-    """DNS预检查，确保域名可以解析"""
-    try:
-        import socket
-        socket.gethostbyname(hostname)
-        return True
-    except socket.gaierror:
-        return False
-    except Exception:
-        return False
+def dns_precheck(hostname, max_retries=3):
+    """DNS预检查，确保域名可以解析，带重试机制"""
+    import socket
+    import time
+    
+    for attempt in range(max_retries):
+        try:
+            result = socket.gethostbyname(hostname)
+            if attempt > 0:
+                logger.info(f"DNS resolution successful for {hostname} on attempt {attempt + 1}: {result}")
+            else:
+                logger.debug(f"DNS resolution successful for {hostname}: {result}")
+            return True
+        except socket.gaierror as e:
+            logger.warning(f"DNS resolution failed for {hostname} on attempt {attempt + 1}: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(0.5)  # 短暂延迟后重试
+                continue
+            else:
+                logger.error(f"DNS resolution failed for {hostname} after {max_retries} attempts: {e}")
+                return False
+        except Exception as e:
+            logger.error(f"Unexpected error during DNS resolution for {hostname} on attempt {attempt + 1}: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(0.5)
+                continue
+            else:
+                return False
+    
+    return False
 
 def send_message(messages, api_key=None, enable_live_search=False):
     """Send messages to the API and get response with intelligent retry and monitoring
