@@ -460,13 +460,14 @@ def dns_precheck(hostname, max_retries=3):
     
     return False
 
-def send_message(messages, api_key=None, enable_live_search=False):
+def send_message(messages, api_key=None, enable_live_search=False, model=None):
     """Send messages to the API and get response with intelligent retry and monitoring
     
     Args:
         messages: List of message objects to send
         api_key: API key for authentication
         enable_live_search: Whether to enable Live Search functionality
+        model: Model name to use for the request
         
     Returns:
         Dictionary containing response or error information
@@ -508,8 +509,9 @@ def send_message(messages, api_key=None, enable_live_search=False):
         
         logger.debug(f"DNS check passed for {hostname}")
         
-        # Get model info from environment variables
-        model = os.getenv('MODEL_NAME', 'grok-3-latest')
+        # Use provided model or fallback to environment variable
+        if model is None:
+            model = os.getenv('MODEL_NAME', 'grok-3-latest')
         temperature = float(os.getenv('TEMPERATURE', '0'))
         logger.debug(f"API request[{request_id}] model: {model}, temperature: {temperature}")
         
@@ -925,10 +927,14 @@ def handle_message(data):
             
         logger.debug(f'[ID:{request_id}] Ready to send API request, total messages: {len(messages)}, including system message: {system_message[:50]}...')
 
+        # Get model from request data or use default
+        model = data.get('model', os.getenv('MODEL_NAME', 'grok-3-latest'))
+        logger.debug(f'[ID:{request_id}] Using model: {model}')
+
         # Call API
         try:
             logger.debug(f'[ID:{request_id}] Starting API call')
-            response_data = send_message(messages, api_key, user_live_search_settings.get(request.sid, False))
+            response_data = send_message(messages, api_key, user_live_search_settings.get(request.sid, False), model)
             logger.debug(f'[ID:{request_id}] API call completed, checking response')
         except Exception as e:
             error_trace = log_exception(e, f'[ID:{request_id}] API call failed')
@@ -1295,7 +1301,8 @@ if __name__ == '__main__':
             port=port,
             debug=debug_mode,
             use_reloader=False,  # Disable reloader for production
-            log_output=debug_mode  # Only log output in debug mode
+            log_output=debug_mode,  # Only log output in debug mode
+            allow_unsafe_werkzeug=True  # Allow Werkzeug in development
         )
     except Exception as e:
         logger.error(f"❌ Failed to start server: {str(e)}")

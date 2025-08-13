@@ -898,6 +898,15 @@
                 <input type="password" id="api-key" placeholder="Enter your API key">
             </div>
             <div class="modal-input-group">
+                <label for="model-select">Model</label>
+                <select id="model-select" style="width: 100%; padding: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-color); font-size: 14px;">
+                    <option value="grok-4-latest">Grok 4 Latest</option>
+                    <option value="grok-3-latest">Grok 3 Latest</option>
+                    <option value="grok-3-fast-latest">Grok 3 Fast Latest</option>
+                    <option value="grok-4-mini">Grok 4 Mini</option>
+                </select>
+            </div>
+            <div class="modal-input-group">
                 <label>xAI Live Search</label>
                 <div class="toggle-container">
                     <input type="checkbox" id="live-search" class="toggle-input">
@@ -1089,6 +1098,7 @@
         let currentConversationId = null;
         let apiKey = localStorage.getItem('api_key');
         let liveSearchEnabled = localStorage.getItem('live_search_enabled') === 'true';
+        let selectedModelName = localStorage.getItem('selected_model') || 'grok-4-latest';
         let pendingRequests = []; // Track pending requests
         let socketReconnecting = false; // Track if Socket is reconnecting
 
@@ -1154,7 +1164,9 @@
         function openSettingsModal() {
             settingsModal.style.display = 'flex';
             const apiKeyInput = document.getElementById('api-key');
+            const modelSelect = document.getElementById('model-select');
             apiKeyInput.value = apiKey || '';
+            modelSelect.value = selectedModelName || 'grok-4-latest';
         }
 
         // 关闭设置弹窗
@@ -1166,9 +1178,11 @@
         async function saveSettings() {
             const apiKeyInput = document.getElementById('api-key');
             const liveSearchInput = document.getElementById('live-search');
+            const modelSelect = document.getElementById('model-select');
             
             const newApiKey = apiKeyInput.value.trim();
             const newLiveSearchEnabled = liveSearchInput.checked;
+            const selectedModel = modelSelect.value;
             
             if (!newApiKey) {
                 showNotification('请输入您的API密钥', 'error');
@@ -1191,11 +1205,13 @@
                 // 网络验证将在实际发送消息时进行
                 apiKey = newApiKey;
                 liveSearchEnabled = newLiveSearchEnabled;
+                selectedModelName = selectedModel;
                 
                 localStorage.setItem('api_key', apiKey);
                 localStorage.setItem('live_search_enabled', liveSearchEnabled);
+                localStorage.setItem('selected_model', selectedModel);
                 
-                showNotification('API密钥已保存，将在发送消息时验证');
+                showNotification('设置已保存，将在发送消息时生效');
                 closeSettingsModal();
             } catch (error) {
                 showNotification('保存设置时发生错误', 'error');
@@ -1405,6 +1421,7 @@
                 message: message,
                 api_key: apiKey, // 确保每次请求都发送API密钥
                 live_search_enabled: liveSearchEnabled,
+                model: selectedModelName,
                 request_id: requestId
             }, (acknowledgement) => {
                 // 清除超时
