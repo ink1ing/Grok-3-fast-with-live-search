@@ -208,13 +208,16 @@ CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",        # Allow cross-origin requests
-    ping_timeout=60,                 # Reduce timeout for better cloud compatibility
-    ping_interval=25,                # Increase ping interval for cloud stability
+    ping_timeout=20,                 # Reduce timeout for better responsiveness
+    ping_interval=25,                # Ping interval for connection health
     async_mode='threading',          # Use threading for better compatibility
     logger=True,                     # Enable SocketIO logging for troubleshooting
     engineio_logger=True,            # Enable Engine.IO logging for troubleshooting
     manage_session=False,            # Don't let SocketIO manage Flask sessions
-    always_connect=True              # Always attempt to connect
+    always_connect=True,             # Always attempt to connect
+    cors_credentials=True,           # Allow credentials for CORS
+    monitor_clients=True,            # Monitor client connections
+    handle_signals=True              # Handle system signals properly
 )
 
 # API endpoint for Grok API

@@ -944,7 +944,8 @@
             transports: ['websocket', 'polling'], // 先尝试WebSocket，然后是polling
             upgrade: true,                // 允许传输升级
             forceNew: true,               // 强制创建新连接
-            withCredentials: true         // 携带凭据（解决CORS问题）
+            withCredentials: true,        // 携带凭据（解决CORS问题）
+            rejectUnauthorized: false     // 忽略SSL证书验证（在某些环境中可能需要）
         });
         
         // 调试功能
