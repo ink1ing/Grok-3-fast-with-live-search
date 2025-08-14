@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: grok3-chat
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: >
+      gunicorn --worker-class eventlet --log-level debug -w 1 
+      --bind 0.0.0.0:$PORT 
+      --timeout 120 
+      --keep-alive 2 
+      --max-requests 1000 
+      --max-requests-jitter 50 
+      chat:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: API_URL
+        value: https://api.x.ai/v1/chat/completions
+      - key: MODEL_NAME
+        value: grok-3-fast-latest
+      - key: TEMPERATURE
+        value: 0
+      - key: DEBUG
+        value: false
+      - key: SOCKETIO_ASYNC_MODE
+        value: threading
+    healthCheckPath: /health
+    plan: free 
