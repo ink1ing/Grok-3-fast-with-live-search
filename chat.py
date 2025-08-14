@@ -204,6 +204,14 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key')
 # 添加CORS支持，允许所有源访问
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
+# 添加额外的CORS头部
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
+
 # Configure SocketIO with cloud-friendly options
 socketio = SocketIO(
     app,
@@ -1305,8 +1313,14 @@ if __name__ == '__main__':
             debug=debug_mode,
             use_reloader=False,  # Disable reloader for production
             log_output=debug_mode,  # Only log output in debug mode
-            allow_unsafe_werkzeug=True  # Allow Werkzeug in development
+            allow_unsafe_werkzeug=True,  # Allow Werkzeug in development
+            cors_allowed_origins="*"  # Ensure CORS is properly configured
         )
+    except Exception as e:
+        logger.error(f"❌ Failed to start server: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        exit(1)
     except Exception as e:
         logger.error(f"❌ Failed to start server: {str(e)}")
         import traceback
