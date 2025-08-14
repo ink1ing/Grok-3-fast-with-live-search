@@ -210,7 +210,14 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
     return response
+
+# 处理OPTIONS请求
+@app.before_request
+def handle_options():
+    if request.method == 'OPTIONS':
+        return '', 200
 
 # Configure SocketIO with cloud-friendly options
 socketio = SocketIO(
