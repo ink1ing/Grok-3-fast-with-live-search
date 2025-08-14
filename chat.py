@@ -1235,6 +1235,19 @@ def handle_connect():
     }, room=client_id)
     return True
 
+@socketio.on('disconnect')
+def handle_disconnect():
+    """处理客户端断开连接"""
+    from flask import request  # 确保导入request
+    client_id = request.sid
+    logger.info(f"客户端断开连接: {client_id}")
+    
+    # 清理客户端相关的数据
+    if client_id in user_api_keys:
+        del user_api_keys[client_id]
+    if client_id in user_live_search_settings:
+        del user_live_search_settings[client_id]
+
 @app.route('/simple-socket-test')
 def simple_socket_test():
     """最简单的Socket.IO连接测试页面"""
