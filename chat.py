@@ -225,7 +225,12 @@ socketio = SocketIO(
     always_connect=True,             # Always attempt to connect
     cors_credentials=True,           # Allow credentials for CORS
     monitor_clients=True,            # Monitor client connections
-    handle_signals=True              # Handle system signals properly
+    handle_signals=True,             # Handle system signals properly
+    cors_methods=["GET", "POST"],    # Specify allowed CORS methods
+    cors_headers=["Content-Type", "Authorization"],  # Specify allowed CORS headers
+    max_http_buffer_size=1000000,    # Increase buffer size for large messages
+    http_compression=True,           # Enable HTTP compression
+    json=json                        # Use standard JSON library
 )
 
 # API endpoint for Grok API
